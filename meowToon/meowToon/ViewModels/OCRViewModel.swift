@@ -116,8 +116,13 @@ class OCRViewModel: ObservableObject {
 
         // 3. Trigger Apple Translation via the `.translationTask` modifier in BrowserView
         let target = Locale.Language(identifier: targetLanguageCode)
-        translationConfig = TranslationSession.Configuration(source: nil, target: target)
-        // isProcessing stays true until performTranslation is called
+        
+        // Force a state change so the SwiftUI modifier registers it as a new task even if the language is the same
+        translationConfig = nil
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.translationConfig = TranslationSession.Configuration(source: nil, target: target)
+        }
     }
 
     // MARK: - Called by BrowserView's .translationTask closure
@@ -142,14 +147,17 @@ class OCRViewModel: ObservableObject {
             // Fall back to showing original text
             recognizedItems = pendingItems
         }
-        translationConfig = nil
+        
+        // Finalize state
         showOverlay  = true
         isProcessing = false
+        translationConfig = nil
     }
 
     func dismissOverlay() {
         showOverlay     = false
         recognizedItems = []
         pendingItems    = []
+        translationConfig = nil
     }
 }

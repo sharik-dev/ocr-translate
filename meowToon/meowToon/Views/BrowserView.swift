@@ -6,11 +6,8 @@ import WebKit
 struct BrowserView: View {
     @EnvironmentObject var settingsVM: SettingsViewModel
     @StateObject private var webVM = WebViewModel()
-    @StateObject private var ocrVM = OCRViewModel()
-    
     let initialURL: String
     
-    @State private var floatingButtonPosition = CGPoint(x: UIScreen.main.bounds.width - 60, y: UIScreen.main.bounds.height - 150)
     @Environment(\.dismiss) private var dismiss
     @State private var isTabBarExpanded = true
     @State private var webViewSize: CGSize = .zero
@@ -118,41 +115,8 @@ struct BrowserView: View {
                 .padding(.bottom, 20)
             }
             
-            // OCR Overlay if processing or complete
-            if ocrVM.isProcessing {
-                Color.black.opacity(0.3)
-                    .edgesIgnoringSafeArea(.all)
-                VStack {
-                    ProgressView(String(localized: "browser.analyzing"))
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
-                }
-            } else if ocrVM.showOverlay {
-                OCRResultOverlay(items: ocrVM.recognizedItems) {
-                    ocrVM.dismissOverlay()
-                }
-            }
-            
-            // Floating Button
-            if settingsVM.translationSettings.isOCREnabled && !ocrVM.isProcessing && !ocrVM.showOverlay {
-                FloatingOCRButton(position: $floatingButtonPosition) {
-                    Task {
-                        if let image = await webVM.takeSnapshot() {
-                            await ocrVM.startPipeline(
-                                image: image,
-                                viewSize: webViewSize,
-                                targetLanguageCode: settingsVM.translationSettings.targetLanguageCode
-                            )
-                        }
-                    }
-                }
-            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(true)
-        .translationTask(ocrVM.translationConfig) { session in
-            await ocrVM.performTranslation(session: session)
-        }
     }
 }
