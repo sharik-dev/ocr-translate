@@ -1,0 +1,38 @@
+/* General */
+"app.name" = "meowToon";
+"cancel" = "Annuler";
+"save" = "Sauvegarder";
+"add" = "Ajouter";
+"delete" = "Supprimer";
+"done" = "Terminé";
+"close" = "Fermer";
+"edit" = "Modifier";
+
+/* Home */
+"home.favorites" = "Favoris";
+"home.search_placeholder" = "Rechercher ou saisir une URL";
+"home.add_favorite" = "Ajouter";
+
+/* Browser */
+"browser.loading" = "Chargement…";
+"browser.analyzing" = "Analyse en cours…";
+"browser.reload" = "Recharger";
+
+/* Add Favorite */
+"favorite.new" = "Nouveau favori";
+"favorite.site_name" = "Nom du site";
+"favorite.url_placeholder" = "URL (https://…)";
+"favorite.icon" = "Icône";
+
+/* OCR / Translation */
+"ocr.tap_to_dismiss" = "Toucher pour fermer la traduction";
+"ocr.button_hint" = "Analyser et traduire";
+
+/* Settings */
+"settings.title" = "Paramètres";
+"settings.ocr_section" = "OCR & Traduction";
+"settings.ocr_enabled" = "Activer la bulle OCR";
+"settings.target_language" = "Langue cible";
+"settings.favorites_section" = "Favoris";
+"settings.about" = "À propos";
+"settings.version" = "Version";

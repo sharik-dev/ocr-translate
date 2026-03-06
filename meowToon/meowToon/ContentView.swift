@@ -1,21 +1,11 @@
-//
-//  ContentView.swift
-//  meowToon
-//
-//  Created by Sharik Mohamed on 06/03/2026.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var settingsVM = SettingsViewModel()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        HomeView()
+            .environmentObject(settingsVM)
     }
 }
 
