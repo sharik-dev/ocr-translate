@@ -221,15 +221,26 @@ class OCRViewModel: ObservableObject {
             await translateHTTP(using: MyMemory.translateBatch, fallback: false)
 
         case .apple:
-            // Trigger .translationTask in ContentView
-            translationConfig = nil
-            try? await Task.sleep(nanoseconds: 60_000_000)   // 60 ms — let SwiftUI refresh
+            // Create a fresh TranslationSession every time (no reuse)
             guard !Task.isCancelled else { isProcessing = false; return }
-            translationConfig = TranslationSession.Configuration(
+            let config = TranslationSession.Configuration(
                 source: nil,
                 target: Locale.Language(identifier: targetCode)
             )
-            // isProcessing stays true until performTranslation() finishes
+            do {
+                let session = try await TranslationSession(configuration: config)
+                await performTranslation(session: session, fallback: fallback)
+            } catch {
+                // On failure, optionally fallback to HTTP engine
+                if fallback {
+                    await translateHTTP(using: GoogleTranslate.translateBatch, fallback: false)
+                } else {
+                    // Show original items if Apple session could not be created
+                    recognizedItems = pendingItems
+                    showOverlay = true
+                    isProcessing = false
+                }
+            }
         }
     }
 
@@ -256,8 +267,8 @@ class OCRViewModel: ObservableObject {
         isProcessing = false
     }
 
-    // MARK: - Called from ContentView's .translationTask
-    // ⚠️  Do NOT store `session` — use it here only.
+    // MARK: - Apple translation execution
+    // ⚠️  Do NOT store `session` — create a fresh one each time and use it here only.
 
     func performTranslation(session: TranslationSession, fallback: Bool) async {
         defer {
@@ -296,3 +307,4 @@ class OCRViewModel: ObservableObject {
         }
     }
 }
+

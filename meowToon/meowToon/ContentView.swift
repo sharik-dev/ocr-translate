@@ -40,6 +40,11 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBMChoice = false
     @State private var showBMSheet  = false
+    @State private var showFavOnboarding = false
+    @AppStorage("didSeeFavOnboarding") private var didSeeFavOnboarding: Bool = false
+
+    @State private var showHistory = false
+    @State private var searchHistory: [String] = UserDefaults.standard.stringArray(forKey: "search.history") ?? []
 
     // Nav bar
     @State private var navExpanded      = true
@@ -143,6 +148,30 @@ struct ContentView: View {
             AddBookmarkSheet(pageTitle: webVM.title, pageURL: webVM.urlString)
                 .environmentObject(libraryManager)
         }
+        .sheet(isPresented: $showHistory) {
+            SearchHistorySheet(items: searchHistory, onSelect: { item in
+                urlBarText = item
+                submitURL()
+                showHistory = false
+            }, onDelete: { index in
+                searchHistory.remove(at: index)
+                UserDefaults.standard.set(searchHistory, forKey: "search.history")
+            }, onClearAll: {
+                searchHistory.removeAll()
+                UserDefaults.standard.set(searchHistory, forKey: "search.history")
+            })
+        }
+        .sheet(isPresented: $showFavOnboarding) {
+            FavoriteOnboardingSheet(onChooseHome: {
+                didSeeFavOnboarding = true
+                showFavOnboarding = false
+                showBMChoice = true
+            }, onChooseLibrary: {
+                didSeeFavOnboarding = true
+                showFavOnboarding = false
+                showBMSheet = true
+            })
+        }
         .confirmationDialog("Enregistrer en tant que…",
                             isPresented: $showBMChoice,
                             titleVisibility: .visible) {
@@ -161,13 +190,9 @@ struct ContentView: View {
 
     private func navBar(geo: GeometryProxy) -> some View {
         HStack(spacing: 2) {
-            // ← Back
-            navBtn("chevron.left", dim: !isInBrowser || !webVM.canGoBack) {
-                webVM.goBack()
-            }
-            // → Forward
-            navBtn("chevron.right", dim: !isInBrowser || !webVM.canGoForward) {
-                webVM.goForward()
+            // ➕ Add to favorites (quick)
+            navBtn(isSiteFavorite ? "smallcircle.filled.circle" : "circle", dim: webVM.urlString.isEmpty) {
+                handleBookmarkTap()
             }
 
             // URL / Search field (flexible)
@@ -181,33 +206,32 @@ struct ContentView: View {
                 } else {
                     navBtn("arrow.clockwise", dim: false) { webVM.reload() }
                 }
+            }
 
-                // 🏠 Menu: home + bookmark actions
-                Menu {
-                    Button { goHome() } label: {
-                        Label("Accueil", systemImage: "house")
-                    }
-                    Divider()
-                    Button { handleBookmarkTap() } label: {
-                        Label(isSiteFavorite ? "Retirer des favoris" : "Favori Accueil",
-                              systemImage: isSiteFavorite ? "bookmark.slash" : "star")
-                    }
-                    Button { showBMSheet = true } label: {
-                        Label("Marque-page Librairie", systemImage: "books.vertical")
-                    }
-                } label: {
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.75))
-                        .frame(width: 32, height: 32)
+            // ≡ Hamburger popup: history + settings + home/bookmarks (always visible)
+            Menu {
+                Button { isInBrowser ? goHome() : () } label: { Label("Accueil", systemImage: "house") }
+                Divider()
+                Button { showHistory = true } label: { Label("Historique", systemImage: "clock.arrow.circlepath") }
+                Button { showSettings = true } label: { Label("Réglages", systemImage: "gear") }
+                Divider()
+                Button { handleBookmarkTap() } label: {
+                    Label(isSiteFavorite ? "Retirer des favoris" : "Favori Accueil",
+                          systemImage: isSiteFavorite ? "bookmark.slash" : "star")
                 }
+                Button { showBMSheet = true } label: {
+                    Label("Marque-page Librairie", systemImage: "books.vertical")
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                    .shadow(color: kGreen.opacity(0.45), radius: 6, y: 2)
+                    .frame(width: 32, height: 32)
             }
 
             // 📚 Library
             navBtn("books.vertical.fill", dim: false) { showLibrary = true }
-
-            // ⚙️ Settings
-            navBtn("gear", dim: false) { showSettings = true }
 
             // ≡ Collapse
             Button {
@@ -217,18 +241,19 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "minus.circle")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(.white.opacity(0.7))
+                    .shadow(color: kGreen.opacity(0.35), radius: 5, y: 2)
                     .frame(width: 32, height: 32)
             }
         }
         .padding(.horizontal, 10)
-        .frame(width: geo.size.width - 24, height: 50)
+        .frame(width: geo.size.width - 24, height: 46)
         .background(
             RoundedRectangle(cornerRadius: 18)
                 .fill(.ultraThinMaterial)
                 .overlay(RoundedRectangle(cornerRadius: 18).fill(Color.black.opacity(0.28)))
                 .overlay(RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 0.5))
+                    .stroke(isEditingURL ? kGreen.opacity(0.6) : Color.clear, lineWidth: 1))
         )
         .shadow(color: .black.opacity(0.35), radius: 14, y: 4)
     }
@@ -238,24 +263,39 @@ struct ContentView: View {
     private var urlField: some View {
         Group {
             if isEditingURL {
-                TextField("URL ou recherche…", text: $urlBarText)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white)
-                    .tint(kGreen)
-                    .keyboardType(.webSearch)
-                    .submitLabel(.go)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .onSubmit { submitURL() }
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.35))
+                    TextField("URL ou recherche…", text: $urlBarText)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                        .tint(kGreen)
+                        .keyboardType(.webSearch)
+                        .submitLabel(.go)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .onSubmit { submitURL() }
+                    if !urlBarText.isEmpty {
+                        Button(action: { urlBarText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white.opacity(0.35))
+                        }
+                    }
+                    Button(action: { showHistory = true }) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
             } else {
                 Button(action: {
                     urlBarText = isInBrowser ? webVM.urlString : ""
                     isEditingURL = true
                 }) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.3))
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.35))
                         Text(isInBrowser
                              ? (webVM.title.isEmpty ? webVM.urlString : webVM.title)
                              : "Rechercher ou entrer une URL…")
@@ -267,13 +307,13 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 7)
+        .padding(.horizontal, 8).padding(.vertical, 4)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(Color.white.opacity(0.07))
-                .overlay(RoundedRectangle(cornerRadius: 9)
-                    .stroke(isEditingURL ? kGreen.opacity(0.45) : Color.clear, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 7)
+                    .stroke(isEditingURL ? kGreen.opacity(0.6) : Color.clear, lineWidth: 1))
         )
     }
 
@@ -329,7 +369,8 @@ struct ContentView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white.opacity(dim ? 0.2 : 0.75))
+                .foregroundColor(.white.opacity(dim ? 0.25 : 0.9))
+                .shadow(color: kGreen.opacity(dim ? 0.0 : 0.45), radius: 6, y: 2)
                 .frame(width: 32, height: 32)
         }
         .disabled(dim)
@@ -355,6 +396,13 @@ struct ContentView: View {
     private func submitURL() {
         let text = urlBarText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { isEditingURL = false; return }
+        // Save to history (unique, most recent first, max 50)
+        if let existing = searchHistory.firstIndex(where: { $0.caseInsensitiveCompare(text) == .orderedSame }) {
+            searchHistory.remove(at: existing)
+        }
+        searchHistory.insert(text, at: 0)
+        if searchHistory.count > 50 { searchHistory.removeLast(searchHistory.count - 50) }
+        UserDefaults.standard.set(searchHistory, forKey: "search.history")
         loadURL(text)
     }
 
@@ -368,7 +416,11 @@ struct ContentView: View {
                 settingsVM.removeFavorite(at: IndexSet(integer: i))
             }
         } else {
-            showBMChoice = true
+            if !didSeeFavOnboarding {
+                showFavOnboarding = true
+            } else {
+                showBMChoice = true
+            }
         }
     }
 
@@ -446,6 +498,118 @@ extension UIView {
         guard let ctx = UIGraphicsGetCurrentContext() else { return nil }
         layer.render(in: ctx)
         return UIGraphicsGetImageFromCurrentImageContext()
+    }
+}
+
+struct SearchHistorySheet: View {
+    let items: [String]
+    let onSelect: (String) -> Void
+    let onDelete: (Int) -> Void
+    let onClearAll: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                kDarkBG.ignoresSafeArea()
+                if items.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 36, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.5))
+                        Text("Aucun historique")
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                } else {
+                    List {
+                        ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                            Button(action: { onSelect(item) }) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundColor(kGreen)
+                                    Text(item)
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .listRowBackground(Color.white.opacity(0.06))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) { onDelete(idx) } label: {
+                                    Label("Supprimer", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Historique")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }.foregroundColor(.white.opacity(0.6))
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !items.isEmpty {
+                        Button("Tout effacer") { onClearAll() }
+                            .foregroundColor(.red.opacity(0.8))
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct FavoriteOnboardingSheet: View {
+    let onChooseHome: () -> Void
+    let onChooseLibrary: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                kDarkBG.ignoresSafeArea()
+                VStack(spacing: 22) {
+                    Text("Où ranger ce favori ?")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Choisissez entre un accès rapide sur l'écran d'accueil ou l'organisation dans la Librairie (catégorie/webtoon).")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    VStack(spacing: 12) {
+                        Button(action: onChooseHome) {
+                            HStack { Image(systemName: "star.fill"); Text("Favori Accueil") }
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.black)
+                                .padding(.vertical, 12).frame(maxWidth: .infinity)
+                                .background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: [kGreen, .cyan], startPoint: .leading, endPoint: .trailing)))
+                        }
+                        Button(action: onChooseLibrary) {
+                            HStack { Image(systemName: "books.vertical"); Text("Marque-page Librairie") }
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(kGreen)
+                                .padding(.vertical, 12).frame(maxWidth: .infinity)
+                                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.06)))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(kGreen.opacity(0.25), lineWidth: 1))
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+            .navigationTitle("Ajouter aux favoris")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }.foregroundColor(.white.opacity(0.6))
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
