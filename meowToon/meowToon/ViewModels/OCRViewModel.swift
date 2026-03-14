@@ -223,12 +223,13 @@ class OCRViewModel: ObservableObject {
         case .apple:
             // Create a fresh TranslationSession every time (no reuse)
             guard !Task.isCancelled else { isProcessing = false; return }
-            let config = TranslationSession.Configuration(
-                source: nil,
-                target: Locale.Language(identifier: targetCode)
-            )
+            let targetLanguage = Locale.Language(identifier: targetCode)
             do {
-                let session = try await TranslationSession(configuration: config)
+                // Xcode 15 / iOS 17.4 requires both installedSource and target to be non-optional Locale.Language
+                // So we manually detect the source language using NLLanguageRecognizer
+                let sourceCode = MyMemory.detectLanguage(of: pendingItems.first?.originalText ?? "")
+                let sourceLanguage = Locale.Language(identifier: sourceCode)
+                let session = try await TranslationSession(installedSource: sourceLanguage, target: targetLanguage)
                 await performTranslation(session: session, fallback: fallback)
             } catch {
                 // On failure, optionally fallback to HTTP engine

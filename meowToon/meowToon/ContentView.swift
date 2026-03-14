@@ -56,6 +56,10 @@ struct ContentView: View {
         x: UIScreen.main.bounds.width  - 46,
         y: UIScreen.main.bounds.height - 200
     )
+    @State private var favBtnPos = CGPoint(
+        x: 60,
+        y: UIScreen.main.bounds.height - 200
+    )
 
     // MARK: - Body
 
@@ -91,8 +95,15 @@ struct ContentView: View {
 
                 // ── Floating OCR button ───────────────────────────────────
                 if settingsVM.translationSettings.isOCREnabled && !ocrVM.isProcessing {
-                    FloatingOCRButton(position: $ocrBtnPos, screenWidth: geo.size.width) {
+                    FloatingBubbleButton(position: $ocrBtnPos, screenWidth: geo.size.width, icon: "text.viewfinder", gradient: LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)) {
                         Task { await triggerOCR() }
+                    }
+                }
+
+                // ── Floating Favorite button ─────────────────────────────
+                if isInBrowser && !webVM.urlString.isEmpty {
+                    FloatingBubbleButton(position: $favBtnPos, screenWidth: geo.size.width, icon: isSiteFavorite ? "bookmark.fill" : "bookmark", gradient: LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)) {
+                        handleBookmarkTap()
                     }
                 }
 
@@ -610,6 +621,55 @@ struct FavoriteOnboardingSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+struct FloatingBubbleButton: View {
+    @Binding var position: CGPoint
+    let screenWidth: CGFloat
+    let icon: String
+    let gradient: LinearGradient
+    let action: () -> Void
+
+    @State private var isDragging = false
+
+    var body: some View {
+        Button(action: { if !isDragging { action() } }) {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Circle().fill(Color.black.opacity(0.35)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                    .frame(width: 50, height: 50)
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(gradient)
+            }
+            .shadow(color: Color.black.opacity(0.35), radius: 6, y: 3)
+            .shadow(color: Color.white.opacity(0.06), radius: 2)
+        }
+        .position(position)
+        .gesture(dragGesture)
+        .scaleEffect(isDragging ? 1.08 : 1.0)
+        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: isDragging)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 2, coordinateSpace: .global)
+            .onChanged { v in
+                if !isDragging { isDragging = true }
+                position = v.location
+            }
+            .onEnded { v in
+                isDragging = false
+                let margin: CGFloat = 32
+                let snapX = v.location.x < screenWidth / 2 ? margin : screenWidth - margin
+                let clampedY = min(max(v.location.y, 80), UIScreen.main.bounds.height - 80)
+                let final = CGPoint(x: snapX, y: clampedY)
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
+                    position = final
+                }
+            }
     }
 }
 
