@@ -4,23 +4,34 @@ import Combine
 class SettingsViewModel: ObservableObject {
     @Published var favorites: [FavoriteSite]
     @Published var translationSettings: TranslationSettings
+    @Published var isAdBlockEnabled: Bool
 
-    private let favoritesKey         = "meowToon.favorites"
-    private let translationKey       = "meowToon.translationSettings"
+    private let favoritesKey       = "meowToon.favorites"
+    private let translationKey     = "meowToon.translationSettings"
+    private let adBlockKey         = "meowToon.adBlockEnabled"
 
     init() {
+        // Favorites — start empty if no saved data
         if let data    = UserDefaults.standard.data(forKey: "meowToon.favorites"),
            let decoded = try? JSONDecoder().decode([FavoriteSite].self, from: data) {
             self.favorites = decoded
         } else {
-            self.favorites = FavoriteSite.defaults
+            self.favorites = []
         }
 
+        // Translation settings
         if let data    = UserDefaults.standard.data(forKey: "meowToon.translationSettings"),
            let decoded = try? JSONDecoder().decode(TranslationSettings.self, from: data) {
             self.translationSettings = decoded
         } else {
             self.translationSettings = TranslationSettings()
+        }
+
+        // Ad blocker — enabled by default
+        if UserDefaults.standard.object(forKey: "meowToon.adBlockEnabled") != nil {
+            self.isAdBlockEnabled = UserDefaults.standard.bool(forKey: "meowToon.adBlockEnabled")
+        } else {
+            self.isAdBlockEnabled = true
         }
     }
 
@@ -51,5 +62,15 @@ class SettingsViewModel: ObservableObject {
     func saveTranslationSettings() {
         guard let data = try? JSONEncoder().encode(translationSettings) else { return }
         UserDefaults.standard.set(data, forKey: translationKey)
+    }
+
+    func saveAdBlock() {
+        UserDefaults.standard.set(isAdBlockEnabled, forKey: adBlockKey)
+    }
+
+    func saveAll() {
+        saveFavorites()
+        saveTranslationSettings()
+        saveAdBlock()
     }
 }

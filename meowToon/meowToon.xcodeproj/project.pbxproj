@@ -24,10 +24,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0AF94631C4084FB91C93DD44 /* MangaDexSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaDexSource.swift; sourceTree = "<group>"; };
-
-		2FD37F3A23664E6B20129D93 /* SourceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceFactory.swift; sourceTree = "<group>"; };
-
 		98ABA3982F5AF73F00C950EE /* meowToon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = meowToon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		98ABA3A52F5AF74000C950EE /* meowToonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = meowToonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98ABA3AF2F5AF74000C950EE /* meowToonUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = meowToonUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -79,8 +75,6 @@
 		98ABA38F2F5AF73F00C950EE = {
 			isa = PBXGroup;
 			children = (
-				0AF94631C4084FB91C93DD44 /* MangaDexSource.swift */,
-				2FD37F3A23664E6B20129D93 /* SourceFactory.swift */,
 				98ABA39A2F5AF73F00C950EE /* meowToon */,
 				98ABA3A82F5AF74000C950EE /* meowToonTests */,
 				98ABA3B22F5AF74000C950EE /* meowToonUITests */,
@@ -177,7 +171,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2610;
-				LastUpgradeCheck = 2610;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					98ABA3972F5AF73F00C950EE = {
 						CreatedOnToolsVersion = 26.1.1;
@@ -242,8 +236,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A608391F82DF6D94A84A2EA3 /* MangaDexSource.swift in Sources */,
-				B53E59FE94FDBF3EAF8B162A /* SourceFactory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,8 +243,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A608391F82DF6D94A84A2EA3 /* MangaDexSource.swift in Sources */,
-				B53E59FE94FDBF3EAF8B162A /* SourceFactory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -260,8 +250,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A608391F82DF6D94A84A2EA3 /* MangaDexSource.swift in Sources */,
-				B53E59FE94FDBF3EAF8B162A /* SourceFactory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,6 +328,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -397,6 +386,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

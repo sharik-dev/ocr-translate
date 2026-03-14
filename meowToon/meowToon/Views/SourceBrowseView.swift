@@ -1,13 +1,19 @@
 import SwiftUI
 
 // This represents browsing a specific source (like Akuma)
+enum SourceViewMode: String, CaseIterable, Identifiable {
+    case grid = "Tableau"
+    case web = "Web"
+    var id: String { self.rawValue }
+}
+
 struct SourceBrowseView: View {
-    let sourceId: String
-    let sourceName: String
+    let source: SourceDescriptor
     
     @State private var query = ""
     @State private var seriesList: [WebtoonSeries] = []
     @State private var isLoading = false
+    @State private var viewMode: SourceViewMode = .grid
     
     // UI Layout: 3 columns for series
     let columns = [
@@ -15,6 +21,30 @@ struct SourceBrowseView: View {
     ]
     
     var body: some View {
+        Group {
+            if viewMode == .grid {
+                nativeGridView
+            } else {
+                BrowserView(initialURL: source.baseUrl)
+                    .navigationBarHidden(true)
+            }
+        }
+        .navigationTitle(source.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Mode", selection: $viewMode) {
+                    ForEach(SourceViewMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+            }
+        }
+    }
+    
+    private var nativeGridView: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(seriesList) { series in
@@ -64,7 +94,6 @@ struct SourceBrowseView: View {
             }
             .padding()
         }
-        .navigationTitle(sourceName)
         .searchable(text: $query, prompt: "Rechercher...")
         .overlay {
             if isLoading {
@@ -89,8 +118,8 @@ struct SourceBrowseView: View {
         isLoading = true
         Task {
             do {
-                let source = SourceFactory.shared.getSource(for: sourceId)
-                let results = try await source.fetchPopularSeries(page: 1)
+                let api = SourceFactory.shared.getSource(for: source.id)
+                let results = try await api.fetchPopularSeries(page: 1)
                 await MainActor.run {
                     self.seriesList = results
                     self.isLoading = false
