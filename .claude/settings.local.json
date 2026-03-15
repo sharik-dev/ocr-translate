@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcrun swift-ide-test:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)"
+    ]
+  }
+}

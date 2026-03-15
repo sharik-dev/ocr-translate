@@ -190,10 +190,11 @@ struct ContentView: View {
             Button("🔖 Marque-page Librairie") { showBMSheet = true }
             Button("Annuler", role: .cancel)   {}
         }
+        // Vue cachée qui héberge le .translationTask.
+        // À chaque appui, run() appelle invalidate() sur la config existante →
+        // version++ → config ≠ ancienne → .translationTask reçoit une session fraîche.
         .translationTask(ocrVM.translationConfig) { session in
-            await ocrVM.performTranslation(
-                session: session,
-                fallback: settingsVM.translationSettings.enableFallback)
+            await ocrVM.performTranslation(session: session)
         }
     }
 
@@ -201,11 +202,6 @@ struct ContentView: View {
 
     private func navBar(geo: GeometryProxy) -> some View {
         HStack(spacing: 2) {
-            // ➕ Add to favorites (quick)
-            navBtn(isSiteFavorite ? "smallcircle.filled.circle" : "circle", dim: webVM.urlString.isEmpty) {
-                handleBookmarkTap()
-            }
-
             // URL / Search field (flexible)
             urlField
                 .padding(.horizontal, 4)
@@ -213,38 +209,22 @@ struct ContentView: View {
             // ↺ Reload / ✕ Stop — shown in browser only
             if isInBrowser {
                 if webVM.isLoading {
-                    navBtn("xmark", dim: false) { webVM.stop() }
+                    navBtn("xmark", dim: false,
+                           glowColor: Color(red: 1, green: 0.3, blue: 0.25)) { webVM.stop() }
                 } else {
-                    navBtn("arrow.clockwise", dim: false) { webVM.reload() }
+                    navBtn("arrow.clockwise", dim: false,
+                           glowColor: Color(red: 0.25, green: 0.7, blue: 1)) { webVM.reload() }
                 }
             }
 
-            // ≡ Hamburger popup: history + settings + home/bookmarks (always visible)
-            Menu {
-                Button { isInBrowser ? goHome() : () } label: { Label("Accueil", systemImage: "house") }
-                Divider()
-                Button { showHistory = true } label: { Label("Historique", systemImage: "clock.arrow.circlepath") }
-                Button { showSettings = true } label: { Label("Réglages", systemImage: "gear") }
-                Divider()
-                Button { handleBookmarkTap() } label: {
-                    Label(isSiteFavorite ? "Retirer des favoris" : "Favori Accueil",
-                          systemImage: isSiteFavorite ? "bookmark.slash" : "star")
-                }
-                Button { showBMSheet = true } label: {
-                    Label("Marque-page Librairie", systemImage: "books.vertical")
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.9))
-                    .shadow(color: kGreen.opacity(0.45), radius: 6, y: 2)
-                    .frame(width: 32, height: 32)
-            }
+            // 📚 Library — green glow
+            navBtn("books.vertical.fill", dim: false, glowColor: kGreen) { showLibrary = true }
 
-            // 📚 Library
-            navBtn("books.vertical.fill", dim: false) { showLibrary = true }
+            // ⚙️ Settings — amber glow
+            navBtn("gear", dim: false,
+                   glowColor: Color(red: 1, green: 0.78, blue: 0.2)) { showSettings = true }
 
-            // ≡ Collapse
+            // ↙ Collapse — soft rose glow
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     navExpanded = false
@@ -252,8 +232,9 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "minus.circle")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
-                    .shadow(color: kGreen.opacity(0.35), radius: 5, y: 2)
+                    .foregroundColor(.white.opacity(0.75))
+                    .shadow(color: Color(red: 1, green: 0.4, blue: 0.6).opacity(0.55), radius: 6,  y: 1)
+                    .shadow(color: Color(red: 1, green: 0.4, blue: 0.6).opacity(0.25), radius: 14, y: 2)
                     .frame(width: 32, height: 32)
             }
         }
@@ -345,9 +326,11 @@ struct ContentView: View {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(kGreen)
+                    .shadow(color: kGreen.opacity(0.8), radius: 8,  y: 1)
+                    .shadow(color: kGreen.opacity(0.4), radius: 18, y: 2)
             }
-            .shadow(color: kGreen.opacity(0.2), radius: 8, y: 3)
-            .shadow(color: .black.opacity(0.35), radius: 4)
+            .shadow(color: kGreen.opacity(0.25), radius: 10, y: 3)
+            .shadow(color: .black.opacity(0.4),  radius: 4)
         }
         .scaleEffect(isDraggingBubble ? 1.08 : 1.0)
         .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isDraggingBubble)
@@ -376,12 +359,16 @@ struct ContentView: View {
     // MARK: - Nav helpers
 
     @ViewBuilder
-    private func navBtn(_ icon: String, dim: Bool, action: @escaping () -> Void) -> some View {
+    private func navBtn(_ icon: String, dim: Bool,
+                        glowColor: Color = kGreen,
+                        action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white.opacity(dim ? 0.25 : 0.9))
-                .shadow(color: kGreen.opacity(dim ? 0.0 : 0.45), radius: 6, y: 2)
+                .foregroundColor(.white.opacity(dim ? 0.25 : 0.92))
+                // double-layer glow for a soft halo
+                .shadow(color: glowColor.opacity(dim ? 0 : 0.65), radius: 6,  y: 1)
+                .shadow(color: glowColor.opacity(dim ? 0 : 0.30), radius: 14, y: 2)
                 .frame(width: 32, height: 32)
         }
         .disabled(dim)
@@ -456,7 +443,6 @@ struct ContentView: View {
             image: image,
             viewSize: window.bounds.size,
             targetLanguageCode: settingsVM.translationSettings.targetLanguageCode,
-            engine: settingsVM.translationSettings.engine,
             enableFallback: settingsVM.translationSettings.enableFallback
         )
     }
@@ -466,8 +452,7 @@ struct ContentView: View {
     private var ocrProcessingOverlay: some View {
         Color.black.opacity(0.45)
             .ignoresSafeArea()
-            .overlay(
-                VStack(spacing: 16) {
+            .overlay(                VStack(spacing: 16) {
                     HStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: kGreen))
@@ -487,13 +472,14 @@ struct ContentView: View {
                     Button(action: { ocrVM.cancel() }) {
                         Text("Annuler")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(.white.opacity(0.75))
                             .padding(.horizontal, 20).padding(.vertical, 8)
                             .background(
                                 Capsule().fill(Color.white.opacity(0.1))
                                     .overlay(Capsule()
-                                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                                        .stroke(Color(red: 1, green: 0.4, blue: 0.4).opacity(0.35), lineWidth: 0.5))
                             )
+                            .shadow(color: Color(red: 1, green: 0.4, blue: 0.4).opacity(0.4), radius: 8, y: 1)
                     }
                 }
             )
@@ -631,45 +617,76 @@ struct FloatingBubbleButton: View {
     let gradient: LinearGradient
     let action: () -> Void
 
-    @State private var isDragging = false
+    // @GestureState resets itself to .zero on gesture end — no manual cleanup needed.
+    // All drag-position math stays local; the parent binding is only written once on release.
+    @GestureState private var dragTranslation: CGSize = .zero
 
-    var body: some View {
-        Button(action: { if !isDragging { action() } }) {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Circle().fill(Color.black.opacity(0.35)))
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-                    .frame(width: 50, height: 50)
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(gradient)
-            }
-            .shadow(color: Color.black.opacity(0.35), radius: 6, y: 3)
-            .shadow(color: Color.white.opacity(0.06), radius: 2)
-        }
-        .position(position)
-        .gesture(dragGesture)
-        .scaleEffect(isDragging ? 1.08 : 1.0)
-        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: isDragging)
+    private var isDragging: Bool {
+        dragTranslation.width != 0 || dragTranslation.height != 0
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 2, coordinateSpace: .global)
-            .onChanged { v in
-                if !isDragging { isDragging = true }
-                position = v.location
-            }
-            .onEnded { v in
-                isDragging = false
-                let margin: CGFloat = 32
-                let snapX = v.location.x < screenWidth / 2 ? margin : screenWidth - margin
-                let clampedY = min(max(v.location.y, 80), UIScreen.main.bounds.height - 80)
-                let final = CGPoint(x: snapX, y: clampedY)
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                    position = final
+    private var ghostCenter: CGPoint {
+        CGPoint(x: position.x + dragTranslation.width,
+                y: position.y + dragTranslation.height)
+    }
+
+    var body: some View {
+        // Color.clear fills the parent ZStack so absolute .position() coordinates
+        // are relative to the full screen, exactly like the original implementation.
+        ZStack {
+            Color.clear.allowsHitTesting(false)
+
+            // ── Ghost (lightweight — shown only while dragging) ───────────
+            if isDragging {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(gradient)
+                        .shadow(color: .white.opacity(0.5), radius: 6)
                 }
+                .position(ghostCenter)
+                .allowsHitTesting(false)
             }
+
+            // ── Real button — dims while ghost is active ──────────────────
+            Button(action: { if !isDragging { action() } }) {
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(Circle().fill(Color.black.opacity(0.35)))
+                        .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(gradient)
+                        .shadow(color: Color(red: 0.12, green: 0.92, blue: 0.45).opacity(0.7), radius: 8)
+                        .shadow(color: Color(red: 0.12, green: 0.92, blue: 0.45).opacity(0.3), radius: 18)
+                }
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+            }
+            .position(position)
+            .opacity(isDragging ? 0.22 : 1)
+            .gesture(
+                DragGesture(minimumDistance: 2, coordinateSpace: .global)
+                    // .updating keeps all state inside GestureState — zero allocations per frame
+                    .updating($dragTranslation) { value, state, _ in
+                        state = value.translation
+                    }
+                    .onEnded { value in
+                        let margin: CGFloat = 32
+                        let screenH = UIScreen.main.bounds.height
+                        let nx = max(margin, min(screenWidth - margin,
+                                                 position.x + value.translation.width))
+                        let ny = max(margin + 50, min(screenH - margin - 50,
+                                                      position.y + value.translation.height))
+                        // Single binding write → single parent re-render
+                        position = CGPoint(x: nx, y: ny)
+                    }
+            )
+        }
     }
 }
 

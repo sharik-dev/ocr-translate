@@ -94,10 +94,7 @@ struct HomeContent: View {
                         startPoint: .topLeading, endPoint: .bottomTrailing)))
                     .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
                     .frame(width: 62, height: 62)
-                Image(systemName: fav.iconSystemName)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(LinearGradient(colors: [.white, kGreen.opacity(0.75)],
-                                                   startPoint: .top, endPoint: .bottom))
+                FaviconView(urlString: fav.urlString, size: 36)
             }
             .shadow(color: kGreen.opacity(0.2), radius: 8)
 

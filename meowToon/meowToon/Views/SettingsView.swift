@@ -42,9 +42,6 @@ struct SettingsView: View {
 
                                 languagePickerRow
 
-                                dividerLine
-
-                                engineSection
                             }
                         }
 
@@ -56,9 +53,7 @@ struct SettingsView: View {
                                     VStack(spacing: 0) {
                                         if idx > 0 { dividerLine }
                                         HStack(spacing: 12) {
-                                            Image(systemName: fav.iconSystemName)
-                                                .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                                .frame(width: 26)
+                                            FaviconView(urlString: fav.urlString, size: 26)
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text(fav.name)
                                                     .font(.system(size: 14, weight: .medium)).foregroundColor(.white)
@@ -137,75 +132,7 @@ struct SettingsView: View {
         .padding(.horizontal, 16).padding(.vertical, 14)
     }
 
-    // MARK: - Engine section
 
-    private var engineSection: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "cpu")
-                    .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 26)
-                Text("Moteur de traduction")
-                    .font(.system(size: 14, weight: .medium)).foregroundColor(.white)
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 8)
-
-            engineRow(.google)
-            Divider().background(Color.white.opacity(0.06)).padding(.horizontal, 12)
-            engineRow(.myMemory)
-            Divider().background(Color.white.opacity(0.06)).padding(.horizontal, 12)
-            engineRow(.apple)
-
-            dividerLine
-            HStack(spacing: 12) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .foregroundColor(kGreen.opacity(0.7))
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Moteur de secours")
-                        .font(.system(size: 13, weight: .medium)).foregroundColor(.white)
-                    Text("Active un moteur alternatif si le principal échoue")
-                        .font(.system(size: 11)).foregroundColor(.white.opacity(0.4))
-                }
-                Spacer()
-                Toggle("", isOn: $settingsVM.translationSettings.enableFallback)
-                    .labelsHidden().tint(kGreen)
-                    .onChange(of: settingsVM.translationSettings.enableFallback) { _, _ in
-                        settingsVM.saveTranslationSettings()
-                    }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .disabled(settingsVM.translationSettings.engine == .myMemory)
-            .opacity(settingsVM.translationSettings.engine == .myMemory ? 0.4 : 1)
-        }
-    }
-
-    private func engineRow(_ engine: TranslationEngine) -> some View {
-        Button(action: {
-            settingsVM.translationSettings.engine = engine
-            if engine == .myMemory { settingsVM.translationSettings.enableFallback = false }
-            settingsVM.saveTranslationSettings()
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: settingsVM.translationSettings.engine == engine
-                      ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(settingsVM.translationSettings.engine == engine ? kGreen : .white.opacity(0.3))
-                    .font(.system(size: 18))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(engine.displayName)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white)
-                    Text(engine.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.vertical, 10)
-        }
-        .buttonStyle(.plain)
-    }
 
     // MARK: - Reusable builders
 
