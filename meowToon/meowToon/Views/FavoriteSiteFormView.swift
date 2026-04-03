@@ -5,22 +5,15 @@ struct FavoriteSiteFormView: View {
     @EnvironmentObject var settingsVM:     SettingsViewModel
     @EnvironmentObject var libraryManager: LibraryManager
 
-    @State private var favoriteType:       FavoriteType = .webtoon
-    @State private var urlString:          String = ""
-    @State private var name:               String = ""
-    @State private var selectedCategoryID: UUID?  = nil
-    @State private var isCreatingNewCat:   Bool   = false
-    @State private var newCategoryName:    String = ""
-    @State private var nameWasAutoFilled:  Bool   = false
+    @State private var favoriteType:      FavoriteType = .webtoon
+    @State private var urlString:         String = ""
+    @State private var name:              String = ""
+    @State private var nameWasAutoFilled: Bool   = false
 
     private var isValid: Bool {
         let u = urlString.trimmingCharacters(in: .whitespaces)
         let n = name.trimmingCharacters(in: .whitespaces)
-        guard !u.isEmpty && !n.isEmpty else { return false }
-        if favoriteType == .webtoon {
-            return selectedCategoryID != nil || isCreatingNewCat
-        }
-        return true
+        return !u.isEmpty && !n.isEmpty
     }
 
     var body: some View {
@@ -36,7 +29,7 @@ struct FavoriteSiteFormView: View {
                             Text("Webtoon").tag(FavoriteType.webtoon)
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: favoriteType) { _, _ in autoSelectCategory() }
+                        .onChange(of: favoriteType) { _, _ in }
 
                         // ── URL ─────────────────────────────────────────────
                         inputSection(label: "LIEN") {
@@ -69,68 +62,6 @@ struct FavoriteSiteFormView: View {
                                 .padding(.horizontal, 16).padding(.vertical, 14)
                         }
 
-                        // ── Catégorie (webtoon seulement) ────────────────────
-                        if favoriteType == .webtoon { inputSection(label: "CATÉGORIE") {
-                            VStack(spacing: 0) {
-                                ForEach(libraryManager.categories) { cat in
-                                    Button {
-                                        selectedCategoryID = cat.id
-                                        isCreatingNewCat   = false
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            Text(cat.emoji).font(.system(size: 18))
-                                            Text(cat.name)
-                                                .font(.system(size: 15))
-                                                .foregroundColor(.white)
-                                            Spacer()
-                                            if selectedCategoryID == cat.id {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 13, weight: .semibold))
-                                                    .foregroundColor(kGreen)
-                                            }
-                                        }
-                                        .padding(.horizontal, 16).padding(.vertical, 13)
-                                        .background(selectedCategoryID == cat.id ? kGreen.opacity(0.08) : .clear)
-                                    }
-                                    if cat.id != libraryManager.categories.last?.id {
-                                        Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
-                                    }
-                                }
-
-                                if !libraryManager.categories.isEmpty {
-                                    Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
-                                }
-
-                                // Nouvelle catégorie
-                                Button {
-                                    isCreatingNewCat   = true
-                                    selectedCategoryID = nil
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Text("Nouvelle catégorie")
-                                            .font(.system(size: 15))
-                                            .foregroundColor(isCreatingNewCat ? kGreen : .white.opacity(0.55))
-                                        Spacer()
-                                        if isCreatingNewCat {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 13, weight: .semibold))
-                                                .foregroundColor(kGreen)
-                                        }
-                                    }
-                                    .padding(.horizontal, 16).padding(.vertical, 13)
-                                    .background(isCreatingNewCat ? kGreen.opacity(0.08) : .clear)
-                                }
-
-                                if isCreatingNewCat {
-                                    Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
-                                    TextField("Nom (ex : Seinen, Shonen…)", text: $newCategoryName)
-                                        .font(.system(size: 15))
-                                        .foregroundColor(.white)
-                                        .tint(kGreen)
-                                        .padding(.horizontal, 16).padding(.vertical, 14)
-                                }
-                            }
-                        } } // end if webtoon + inputSection
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
                 }
@@ -151,7 +82,6 @@ struct FavoriteSiteFormView: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
-            .onAppear { autoSelectCategory() }
         }
         .preferredColorScheme(.dark)
     }
@@ -177,16 +107,6 @@ struct FavoriteSiteFormView: View {
     }
 
     // MARK: - Logic
-
-    private func autoSelectCategory() {
-        if selectedCategoryID == nil {
-            if let first = libraryManager.categories.first {
-                selectedCategoryID = first.id
-            } else {
-                isCreatingNewCat = true
-            }
-        }
-    }
 
     private func extractTitle(from rawURL: String) -> String {
         var urlStr = rawURL.trimmingCharacters(in: .whitespaces)
@@ -221,17 +141,8 @@ struct FavoriteSiteFormView: View {
         switch favoriteType {
         case .site:
             settingsVM.addFavorite(FavoriteSite(name: trimName, urlString: url, type: .site))
-
         case .webtoon:
-            if isCreatingNewCat {
-                let catName = newCategoryName.trimmingCharacters(in: .whitespaces)
-                libraryManager.addCategory(name: catName.isEmpty ? "Mes webtoons" : catName)
-                if let newCat = libraryManager.categories.last {
-                    libraryManager.addWebtoon(name: trimName, siteURL: url, to: newCat.id)
-                }
-            } else if let catID = selectedCategoryID {
-                libraryManager.addWebtoon(name: trimName, siteURL: url, to: catID)
-            }
+            libraryManager.quickAddWebtoon(name: trimName, siteURL: url)
         }
         dismiss()
     }

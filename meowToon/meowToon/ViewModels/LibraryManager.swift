@@ -2,10 +2,12 @@ import Foundation
 import Combine
 
 class LibraryManager: ObservableObject {
-    @Published var categories: [LibraryCategory] = []
-    @Published var savedSeries: Set<String> = [] // Stores series IDs
+    @Published var categories:            [LibraryCategory]  = []
+    @Published var uncategorizedWebtoons: [LibraryWebtoon]   = []
+    @Published var savedSeries:           Set<String>        = []
 
-    private let key = "meowToon.libraryV2"
+    private let key            = "meowToon.libraryV2"
+    private let uncatKey       = "meowToon.uncategorized"
     private let savedSeriesKey = "meowToon.savedSeries"
 
     init() {
@@ -16,14 +18,11 @@ class LibraryManager: ObservableObject {
 
     private func seedDefaultCategories() {
         let defaults: [(String, String)] = [
-            ("Action",         "⚔️"),
-            ("Romance",        "💕"),
-            ("Comédie",        "😄"),
-            ("Fantaisie",      "🧙"),
-            ("Aventure",       "🗺️"),
-            ("Horreur",        "💀"),
-            ("Tranche de vie", "☕"),
-            ("Sci-Fi",         "🚀"),
+            ("Action",    "⚔️"),
+            ("Romance",   "💕"),
+            ("Fantaisie", "🧙"),
+            ("Comédie",   "😄"),
+            ("Sci-Fi",    "🚀"),
         ]
         categories = defaults.map { LibraryCategory(name: $0.0, emoji: $0.1) }
         save()
@@ -62,6 +61,22 @@ class LibraryManager: ObservableObject {
         save()
     }
 
+    func removeUncategorizedWebtoon(id: UUID) {
+        uncategorizedWebtoons.removeAll { $0.id == id }
+        save()
+    }
+
+    func moveWebtoon(id: UUID, toCategoryID: UUID) {
+        guard let idx = uncategorizedWebtoons.firstIndex(where: { $0.id == id }) else { return }
+        let w = uncategorizedWebtoons.remove(at: idx)
+        guard let ci = categories.firstIndex(where: { $0.id == toCategoryID }) else {
+            uncategorizedWebtoons.insert(w, at: idx)
+            return
+        }
+        categories[ci].addWebtoon(w)
+        save()
+    }
+
     // MARK: - Bookmarks
 
     func addBookmark(title: String, url: String, note: String = "", to webtoonID: UUID, in categoryID: UUID) {
@@ -84,11 +99,8 @@ class LibraryManager: ObservableObject {
     // MARK: - Quick add (creates default category if needed)
 
     func quickAddWebtoon(name: String, siteURL: String) {
-        if categories.isEmpty {
-            categories.append(LibraryCategory(name: "Mes webtoons", emoji: "📚"))
-        }
         let w = LibraryWebtoon(name: name, siteURL: siteURL)
-        categories[0].addWebtoon(w)
+        uncategorizedWebtoons.append(w)
         save()
     }
 
@@ -110,15 +122,23 @@ class LibraryManager: ObservableObject {
     // MARK: - Persistence
 
     func save() {
-        guard let data = try? JSONEncoder().encode(categories) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        if let data = try? JSONEncoder().encode(categories) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+        if let data = try? JSONEncoder().encode(uncategorizedWebtoons) {
+            UserDefaults.standard.set(data, forKey: uncatKey)
+        }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let cats = try? JSONDecoder().decode([LibraryCategory].self, from: data)
-        else { return }
-        categories = cats
+        if let data = UserDefaults.standard.data(forKey: key),
+           let cats = try? JSONDecoder().decode([LibraryCategory].self, from: data) {
+            categories = cats
+        }
+        if let data = UserDefaults.standard.data(forKey: uncatKey),
+           let uncat = try? JSONDecoder().decode([LibraryWebtoon].self, from: data) {
+            uncategorizedWebtoons = uncat
+        }
     }
     
     private func saveSavedSeries() {
