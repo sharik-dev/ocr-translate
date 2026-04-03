@@ -8,9 +8,25 @@ class LibraryManager: ObservableObject {
     private let key = "meowToon.libraryV2"
     private let savedSeriesKey = "meowToon.savedSeries"
 
-    init() { 
+    init() {
         load()
         loadSavedSeries()
+        if categories.isEmpty { seedDefaultCategories() }
+    }
+
+    private func seedDefaultCategories() {
+        let defaults: [(String, String)] = [
+            ("Action",         "⚔️"),
+            ("Romance",        "💕"),
+            ("Comédie",        "😄"),
+            ("Fantaisie",      "🧙"),
+            ("Aventure",       "🗺️"),
+            ("Horreur",        "💀"),
+            ("Tranche de vie", "☕"),
+            ("Sci-Fi",         "🚀"),
+        ]
+        categories = defaults.map { LibraryCategory(name: $0.0, emoji: $0.1) }
+        save()
     }
 
     // MARK: - Categories

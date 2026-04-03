@@ -20,6 +20,7 @@ struct WebViewContainer: UIViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
 
         viewModel.webView = webView
+        viewModel.loadPendingIfNeeded()
 
         // Apply adblock on creation if enabled
         if isAdBlockEnabled {

@@ -1,109 +1,141 @@
 import SwiftUI
 
-private let kGreen  = Color(red: 0.12, green: 0.92, blue: 0.45)
-private let kDarkBG = Color(red: 0.02, green: 0.06, blue: 0.02)
-
 struct FavoriteSiteFormView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var settingsVM:    SettingsViewModel
+    @EnvironmentObject var settingsVM:     SettingsViewModel
     @EnvironmentObject var libraryManager: LibraryManager
 
-    @State private var name:           String = ""
-    @State private var urlString:      String = ""
-    @State private var iconSystemName: String = "globe"
-    @State private var favoriteType:   FavoriteType = .site
-
-    let availableIcons = [
-        "globe", "book", "books.vertical", "rectangle.stack",
-        "star", "heart", "newspaper", "link", "safari",
-        "play.circle", "gamecontroller", "music.note", "photo", "tv"
-    ]
+    @State private var favoriteType:       FavoriteType = .webtoon
+    @State private var urlString:          String = ""
+    @State private var name:               String = ""
+    @State private var selectedCategoryID: UUID?  = nil
+    @State private var isCreatingNewCat:   Bool   = false
+    @State private var newCategoryName:    String = ""
+    @State private var nameWasAutoFilled:  Bool   = false
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !urlString.trimmingCharacters(in: .whitespaces).isEmpty
+        let u = urlString.trimmingCharacters(in: .whitespaces)
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !u.isEmpty && !n.isEmpty else { return false }
+        if favoriteType == .webtoon {
+            return selectedCategoryID != nil || isCreatingNewCat
+        }
+        return true
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 kDarkBG.ignoresSafeArea()
-
                 ScrollView {
                     VStack(spacing: 20) {
 
-                        // Type picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            sectionHeader("TYPE")
-                            glassCard {
-                                HStack(spacing: 0) {
-                                    ForEach(FavoriteType.allCases, id: \.self) { t in
-                                        Button(action: { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { favoriteType = t } }) {
-                                            HStack(spacing: 8) {
-                                                Image(systemName: t.icon)
-                                                    .font(.system(size: 14))
-                                                Text(t == .site ? "Site (Accueil)" : "Webtoon (Librairie)")
-                                                    .font(.system(size: 13, weight: .semibold))
-                                            }
-                                            .foregroundColor(favoriteType == t ? .black : .white.opacity(0.5))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 11)
-                                            .background(
-                                                favoriteType == t
-                                                    ? LinearGradient(colors: [kGreen, .cyan], startPoint: .leading, endPoint: .trailing)
-                                                    : LinearGradient(colors: [.clear, .clear], startPoint: .leading, endPoint: .trailing)
-                                            )
-                                        }
-                                    }
+                        // ── Type Site / Webtoon ──────────────────────────────
+                        Picker("", selection: $favoriteType) {
+                            Text("Accès rapide").tag(FavoriteType.site)
+                            Text("Webtoon").tag(FavoriteType.webtoon)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: favoriteType) { _, _ in autoSelectCategory() }
+
+                        // ── URL ─────────────────────────────────────────────
+                        inputSection(label: "LIEN") {
+                            TextField("https://…", text: $urlString)
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                                .tint(kGreen)
+                                .keyboardType(.URL)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .padding(.horizontal, 16).padding(.vertical, 14)
+                        }
+                        .onChange(of: urlString) { _, newURL in
+                            if nameWasAutoFilled || name.isEmpty {
+                                let extracted = extractTitle(from: newURL)
+                                if !extracted.isEmpty {
+                                    name             = extracted
+                                    nameWasAutoFilled = true
                                 }
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
                         }
 
-                        // Name & URL fields
-                        glassCard {
+                        // ── Nom ─────────────────────────────────────────────
+                        inputSection(label: "NOM") {
+                            TextField("Nom affiché", text: $name)
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                                .tint(kGreen)
+                                .onChange(of: name) { _, _ in nameWasAutoFilled = false }
+                                .padding(.horizontal, 16).padding(.vertical, 14)
+                        }
+
+                        // ── Catégorie (webtoon seulement) ────────────────────
+                        if favoriteType == .webtoon { inputSection(label: "CATÉGORIE") {
                             VStack(spacing: 0) {
-                                fieldRow(placeholder: "Nom",                 text: $name,      icon: "tag",  keyboard: .default)
-                                Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
-                                fieldRow(placeholder: "https://example.com", text: $urlString, icon: "link", keyboard: .URL)
-                            }
-                        }
-
-                        // Icon picker — only for Site type
-                        if favoriteType == .site {
-                            VStack(alignment: .leading, spacing: 8) {
-                                sectionHeader("ICÔNE")
-                                glassCard {
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: 12)], spacing: 12) {
-                                        ForEach(availableIcons, id: \.self) { icon in
-                                            Button(action: { iconSystemName = icon }) {
-                                                ZStack {
-                                                    Circle()
-                                                        .fill(iconSystemName == icon
-                                                              ? LinearGradient(colors: [kGreen.opacity(0.55), Color.green.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                                              : LinearGradient(colors: [Color.white.opacity(0.06), Color.white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                                        .overlay(Circle().stroke(
-                                                            iconSystemName == icon ? kGreen.opacity(0.6) : Color.white.opacity(0.08),
-                                                            lineWidth: 1))
-                                                        .frame(width: 50, height: 50)
-                                                    Image(systemName: icon)
-                                                        .font(.system(size: 20, weight: .medium))
-                                                        .foregroundColor(iconSystemName == icon ? .white : .white.opacity(0.5))
-                                                }
-                                                .shadow(color: iconSystemName == icon ? kGreen.opacity(0.45) : .clear, radius: 10)
-                                                .animation(.spring(response: 0.28, dampingFraction: 0.7), value: iconSystemName)
+                                ForEach(libraryManager.categories) { cat in
+                                    Button {
+                                        selectedCategoryID = cat.id
+                                        isCreatingNewCat   = false
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Text(cat.emoji).font(.system(size: 18))
+                                            Text(cat.name)
+                                                .font(.system(size: 15))
+                                                .foregroundColor(.white)
+                                            Spacer()
+                                            if selectedCategoryID == cat.id {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                    .foregroundColor(kGreen)
                                             }
                                         }
+                                        .padding(.horizontal, 16).padding(.vertical, 13)
+                                        .background(selectedCategoryID == cat.id ? kGreen.opacity(0.08) : .clear)
                                     }
-                                    .padding(16)
+                                    if cat.id != libraryManager.categories.last?.id {
+                                        Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
+                                    }
+                                }
+
+                                if !libraryManager.categories.isEmpty {
+                                    Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
+                                }
+
+                                // Nouvelle catégorie
+                                Button {
+                                    isCreatingNewCat   = true
+                                    selectedCategoryID = nil
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Text("Nouvelle catégorie")
+                                            .font(.system(size: 15))
+                                            .foregroundColor(isCreatingNewCat ? kGreen : .white.opacity(0.55))
+                                        Spacer()
+                                        if isCreatingNewCat {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundColor(kGreen)
+                                        }
+                                    }
+                                    .padding(.horizontal, 16).padding(.vertical, 13)
+                                    .background(isCreatingNewCat ? kGreen.opacity(0.08) : .clear)
+                                }
+
+                                if isCreatingNewCat {
+                                    Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 16)
+                                    TextField("Nom (ex : Seinen, Shonen…)", text: $newCategoryName)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(.white)
+                                        .tint(kGreen)
+                                        .padding(.horizontal, 16).padding(.vertical, 14)
                                 }
                             }
-                        }
+                        } } // end if webtoon + inputSection
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
                 }
             }
-            .navigationTitle(favoriteType == .site ? "Nouveau favori" : "Nouveau webtoon")
+            .navigationTitle(favoriteType == .site ? "Accès rapide" : "Ajouter un webtoon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -113,67 +145,95 @@ struct FavoriteSiteFormView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Enregistrer") { save() }
                         .disabled(!isValid)
-                        .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .leading, endPoint: .trailing))
+                        .foregroundStyle(isValid
+                            ? LinearGradient(colors: [kGreen, kGreen.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
+                            : LinearGradient(colors: [.gray.opacity(0.4), .gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing))
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
+            .onAppear { autoSelectCategory() }
         }
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Save
+    // MARK: - Helpers UI
+
+    private func inputSection<C: View>(label: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white.opacity(0.38))
+                .tracking(1.0)
+                .padding(.horizontal, 4)
+            content()
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(.ultraThinMaterial)
+                        .overlay(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.025)))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08), lineWidth: 1))
+                )
+                .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+        }
+    }
+
+    // MARK: - Logic
+
+    private func autoSelectCategory() {
+        if selectedCategoryID == nil {
+            if let first = libraryManager.categories.first {
+                selectedCategoryID = first.id
+            } else {
+                isCreatingNewCat = true
+            }
+        }
+    }
+
+    private func extractTitle(from rawURL: String) -> String {
+        var urlStr = rawURL.trimmingCharacters(in: .whitespaces)
+        if !urlStr.hasPrefix("http") { urlStr = "https://" + urlStr }
+        guard let url = URL(string: urlStr) else { return "" }
+        let paths = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        for comp in paths.reversed() {
+            let noExt   = (comp.components(separatedBy: "?").first ?? comp).components(separatedBy: ".").first ?? comp
+            let cleaned = noExt.replacingOccurrences(of: "-", with: " ")
+                               .replacingOccurrences(of: "_", with: " ")
+                               .trimmingCharacters(in: .whitespaces)
+            let isNumeric = cleaned.split(separator: " ").allSatisfy { $0.allSatisfy(\.isNumber) }
+            if cleaned.count > 2 && !isNumeric {
+                return cleaned.split(separator: " ")
+                    .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+                    .joined(separator: " ")
+            }
+        }
+        if let host = url.host?.lowercased() {
+            let stripped = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+            let part = stripped.components(separatedBy: ".").first ?? stripped
+            return part.prefix(1).uppercased() + part.dropFirst()
+        }
+        return ""
+    }
 
     private func save() {
-        let trimName = name.trimmingCharacters(in: .whitespaces)
         var url = urlString.trimmingCharacters(in: .whitespaces)
         if !url.hasPrefix("http://") && !url.hasPrefix("https://") { url = "https://" + url }
+        let trimName = name.trimmingCharacters(in: .whitespaces)
 
         switch favoriteType {
         case .site:
-            settingsVM.addFavorite(FavoriteSite(
-                name: trimName, urlString: url,
-                iconSystemName: iconSystemName, type: .site))
+            settingsVM.addFavorite(FavoriteSite(name: trimName, urlString: url, type: .site))
+
         case .webtoon:
-            libraryManager.quickAddWebtoon(name: trimName, siteURL: url)
+            if isCreatingNewCat {
+                let catName = newCategoryName.trimmingCharacters(in: .whitespaces)
+                libraryManager.addCategory(name: catName.isEmpty ? "Mes webtoons" : catName)
+                if let newCat = libraryManager.categories.last {
+                    libraryManager.addWebtoon(name: trimName, siteURL: url, to: newCat.id)
+                }
+            } else if let catID = selectedCategoryID {
+                libraryManager.addWebtoon(name: trimName, siteURL: url, to: catID)
+            }
         }
         dismiss()
-    }
-
-    // MARK: - Helpers
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.white.opacity(0.38))
-            .padding(.horizontal, 4)
-    }
-
-    @ViewBuilder
-    private func glassCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.025)))
-                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08), lineWidth: 1))
-            )
-            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-    }
-
-    private func fieldRow(placeholder: String, text: Binding<String>, icon: String, keyboard: UIKeyboardType) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 24)
-            TextField(placeholder, text: text)
-                .font(.system(size: 15))
-                .foregroundColor(.white)
-                .tint(kGreen)
-                .keyboardType(keyboard)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
     }
 }
 

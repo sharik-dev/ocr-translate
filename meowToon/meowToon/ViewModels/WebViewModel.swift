@@ -40,6 +40,18 @@ class WebViewModel: ObservableObject {
     func reload()    { webView?.reload() }
     func stop()      { webView?.stopLoading() }
 
+    // MARK: - Session restore
+
+    /// URL queued before the WKWebView is attached; loaded in loadPendingIfNeeded().
+    var pendingURL: String?
+
+    /// Called by WebViewContainer right after viewModel.webView is set.
+    func loadPendingIfNeeded() {
+        guard let url = pendingURL, !url.isEmpty else { return }
+        pendingURL = nil
+        load(urlString: url)
+    }
+
     // MARK: - Screenshot
 
     /// Asynchronously captures the visible content of the web view as a UIImage.

@@ -1,7 +1,5 @@
 import SwiftUI
 
-private let kGreen  = Color(red: 0.12, green: 0.92, blue: 0.45)
-private let kDarkBG = Color(red: 0.02, green: 0.06, blue: 0.02)
 
 // MARK: - Root library view (categories)
 

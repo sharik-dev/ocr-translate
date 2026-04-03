@@ -43,5 +43,22 @@
   {"trigger":{"url-filter":".*tpc\\.googlesyndication\\.com.*"},"action":{"type":"block"}},
   {"trigger":{"url-filter":".*\\.connect\\.facebook\\.net.*/fbevents\\.js"},"action":{"type":"block"}},
   {"trigger":{"url-filter":".*\\.connect\\.facebook\\.net.*/all\\.js"},"action":{"type":"block"}},
-  {"trigger":{"url-filter":".*\\.intercom\\.io/widget.*","resource-type":["script"]},"action":{"type":"block"}}
+  {"trigger":{"url-filter":".*\\.intercom\\.io/widget.*","resource-type":["script"]},"action":{"type":"block"}},
+  
+  /* --- AJOUTS SPÉCIFIQUES WEBTOONS & SCANS --- */
+  
+  {"trigger":{"url-filter":".*\\.mgid\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.revcontent\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.onclickperformance\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.adtrue\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.monetag\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.clickadu\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.adsterra\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.hilltopads\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.a-ads\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.mng-ads\\.com.*"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":".*\\.yandex\\.ru.*"},"action":{"type":"block"}},
+  
+  /* Masquage cosmétique pour supprimer les zones blanches/cadres vides */
+  {"trigger":{"url-filter":".*"},"action":{"type":"css-display-none","selector":".adsbygoogle, .ad-container, .ads-wrapper, .ad-box, #div-gpt-ad, [id^='ad_'], [class^='ad_'], .manga-ads"}}
 ]
