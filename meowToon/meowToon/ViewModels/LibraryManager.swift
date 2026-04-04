@@ -104,6 +104,29 @@ class LibraryManager: ObservableObject {
         save()
     }
 
+    func addBookmark(title: String, url: String, note: String = "", toWebtoon webtoonID: UUID) {
+        if let idx = uncategorizedWebtoons.firstIndex(where: { $0.id == webtoonID }) {
+            uncategorizedWebtoons[idx].addBookmark(WebBookmark(title: title, url: url, note: note))
+            save(); return
+        }
+        for ci in categories.indices {
+            if let wi = categories[ci].webtoons.firstIndex(where: { $0.id == webtoonID }) {
+                categories[ci].webtoons[wi].addBookmark(WebBookmark(title: title, url: url, note: note))
+                save(); return
+            }
+        }
+    }
+
+    func isURLSaved(_ url: String) -> Bool {
+        guard !url.isEmpty else { return false }
+        if uncategorizedWebtoons.contains(where: { $0.siteURL == url || $0.bookmarks.contains(where: { $0.url == url }) }) { return true }
+        return categories.contains { cat in
+            cat.webtoons.contains { w in
+                w.siteURL == url || w.bookmarks.contains(where: { $0.url == url })
+            }
+        }
+    }
+
     // MARK: - Series Management
     
     func isSaved(series: WebtoonSeries) -> Bool {

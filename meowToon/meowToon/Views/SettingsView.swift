@@ -95,7 +95,7 @@ struct SettingsView: View {
                         settingsVM.saveAll()
                         dismiss()
                     }
-                    .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .leading, endPoint: .trailing))
+                    .foregroundColor(.white)
                     .font(.system(size: 15, weight: .semibold))
                 }
             }
@@ -108,7 +108,7 @@ struct SettingsView: View {
     private var languagePickerRow: some View {
         HStack(spacing: 12) {
             Image(systemName: "globe")
-                .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .foregroundColor(.white.opacity(0.65))
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Langue cible").font(.system(size: 14, weight: .medium)).foregroundColor(.white)
@@ -121,7 +121,7 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
-            .tint(kGreen)
+            .tint(.white)
             .onChange(of: settingsVM.translationSettings.targetLanguageCode) { _, _ in
                 ocrVM.invalidateSession()
                 settingsVM.saveTranslationSettings()
@@ -165,7 +165,7 @@ struct SettingsView: View {
     ) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(LinearGradient(colors: [kGreen, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .foregroundColor(.white.opacity(0.65))
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label).font(.system(size: 14, weight: .medium)).foregroundColor(.white)

@@ -5,7 +5,7 @@ private let hCard   = Color(white: 0.12)
 private let hBorder = Color.white.opacity(0.08)
 private let hText   = Color.white.opacity(0.88)
 private let hSub    = Color.white.opacity(0.38)
-private let hAccent = Color(red: 0.0, green: 0.835, blue: 0.392)
+private let hAccent = Color.white.opacity(0.55)
 
 enum WebtoonSort: String, CaseIterable {
     case nameAZ = "A → Z"
@@ -55,7 +55,7 @@ struct HomeContent: View {
 
             // Halo déco
             Ellipse()
-                .fill(RadialGradient(colors: [hAccent.opacity(0.07), .clear],
+                .fill(RadialGradient(colors: [Color.white.opacity(0.04), .clear],
                                      center: .center, startRadius: 0, endRadius: 200))
                 .frame(width: 380, height: 240)
                 .offset(x: 80, y: -40)
@@ -393,10 +393,12 @@ private struct WebtoonCard: View {
                         .lineLimit(2)
                         .shadow(color: .white.opacity(0.2), radius: 4)
 
-                    Text(categoryName)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(hAccent.opacity(0.6))
-                        .lineLimit(1)
+                    if !categoryName.isEmpty {
+                        Text(categoryName)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.white.opacity(0.3))
+                            .lineLimit(1)
+                    }
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 6)
@@ -415,6 +417,15 @@ private struct WebtoonCard: View {
                 Button { onOpenURL(bm.url) } label: { Label("Reprendre", systemImage: "play.fill") }
             }
             Button { onShowDetail() } label: { Label("Marque-pages", systemImage: "bookmark") }
+            if categoryID == nil && !categories.isEmpty {
+                Menu {
+                    ForEach(categories) { cat in
+                        Button { onMoveToCategory(cat.id) } label: {
+                            Text(cat.name)
+                        }
+                    }
+                } label: { Label("Ajouter à une catégorie", systemImage: "folder.badge.plus") }
+            }
             Divider()
             Button(role: .destructive) { onDelete() } label: { Label("Supprimer", systemImage: "trash") }
         }

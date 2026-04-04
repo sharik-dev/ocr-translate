@@ -4,7 +4,7 @@ import Translation
 // MARK: - Theme constants (internal so sub-views can access)
 
 let kGreen  = Color(red: 0.0, green: 0.835, blue: 0.392)
-let kDarkBG = Color(red: 0.02, green: 0.06, blue: 0.02)
+let kDarkBG = Color(red: 0.05, green: 0.05, blue: 0.07)
 
 // MARK: - Persisted bubble position helpers
 
@@ -37,13 +37,10 @@ struct ContentView: View {
     @State private var isEditingURL = false
 
     // Sheets / dialogs
-    @State private var showLibrary      = false
-    @State private var showSettings     = false
-    @State private var showBMChoice     = false
-    @State private var showBMSheet      = false
-    @State private var showFavOnboarding = false
-    @State private var showTabGrid      = false
-    @AppStorage("didSeeFavOnboarding") private var didSeeFavOnboarding: Bool = false
+    @State private var showLibrary   = false
+    @State private var showSettings  = false
+    @State private var showQuickSave = false
+    @State private var showTabGrid   = false
 
     @State private var showHistory   = false
     @State private var searchHistory: [String] = UserDefaults.standard.stringArray(forKey: "search.history") ?? []
@@ -76,8 +73,8 @@ struct ContentView: View {
     }
     @StateObject private var _fallbackVM = WebViewModel()
 
-    private var isSiteFavorite: Bool {
-        settingsVM.favorites.contains { $0.urlString == activeVM.urlString && $0.type == .site }
+    private var isPageSaved: Bool {
+        libraryManager.isURLSaved(activeVM.urlString)
     }
 
     // MARK: - Body
@@ -139,14 +136,12 @@ struct ContentView: View {
                 FloatingBubbleButton(
                     position: $favBtnPos,
                     screenWidth: geo.size.width,
-                    icon: isSiteFavorite ? "bookmark.fill" : "bookmark",
+                    icon: isPageSaved ? "bookmark.fill" : "bookmark",
                     dimmed: !isInBrowser || activeVM.urlString.isEmpty
                 ) {
-                    if isInBrowser && !activeVM.urlString.isEmpty {
-                        handleBookmarkTap()
-                    } else {
-                        showBMSheet = true
-                    }
+                    guard isInBrowser && !activeVM.urlString.isEmpty else { return }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    showQuickSave = true
                 }
 
                 // ── Persistent nav bar ────────────────────────────────────
@@ -321,12 +316,9 @@ struct ContentView: View {
                 .environmentObject(settingsVM)
                 .environmentObject(ocrVM)
         }
-        .sheet(isPresented: $showBMSheet) {
-            AddBookmarkSheet(
-                pageTitle: activeVM.title,
-                pageURL:   activeVM.urlString
-            )
-            .environmentObject(libraryManager)
+        .sheet(isPresented: $showQuickSave) {
+            QuickSaveSheet(pageURL: activeVM.urlString, pageTitle: activeVM.title)
+                .environmentObject(libraryManager)
         }
         .sheet(isPresented: $showHistory) {
             SearchHistorySheet(
@@ -345,27 +337,6 @@ struct ContentView: View {
                     UserDefaults.standard.set(searchHistory, forKey: "search.history")
                 }
             )
-        }
-        .sheet(isPresented: $showFavOnboarding) {
-            FavoriteOnboardingSheet(
-                onChooseHome: {
-                    didSeeFavOnboarding = true
-                    showFavOnboarding   = false
-                    showBMChoice        = true
-                },
-                onChooseLibrary: {
-                    didSeeFavOnboarding = true
-                    showFavOnboarding   = false
-                    showBMSheet         = true
-                }
-            )
-        }
-        .confirmationDialog("Enregistrer en tant que…",
-                            isPresented: $showBMChoice,
-                            titleVisibility: .visible) {
-            Button("Favori Accueil")         { addSiteFavorite() }
-            Button("Marque-page Librairie") { showBMSheet = true }
-            Button("Annuler", role: .cancel)   {}
         }
         .translationTask(ocrVM.translationConfig) { session in
             await ocrVM.performTranslation(session: session)
@@ -431,30 +402,6 @@ struct ContentView: View {
         loadURL(text)
     }
 
-    private func handleBookmarkTap() {
-        let url = activeVM.urlString
-        guard !url.isEmpty else { return }
-        if isSiteFavorite {
-            if let i = settingsVM.favorites.firstIndex(where: {
-                $0.urlString == url && $0.type == .site
-            }) {
-                settingsVM.removeFavorite(at: IndexSet(integer: i))
-            }
-        } else {
-            if !didSeeFavOnboarding {
-                showFavOnboarding = true
-            } else {
-                showBMChoice = true
-            }
-        }
-    }
-
-    private func addSiteFavorite() {
-        let url  = activeVM.urlString
-        let name = activeVM.title.isEmpty ? url : activeVM.title
-        settingsVM.addFavorite(FavoriteSite(name: name, urlString: url, type: .site))
-    }
-
     // MARK: - OCR trigger
 
     @MainActor
@@ -483,7 +430,7 @@ struct ContentView: View {
                 VStack(spacing: 16) {
                     HStack(spacing: 12) {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: kGreen))
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         Text("Analyse en cours…")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.white)
@@ -493,9 +440,9 @@ struct ContentView: View {
                         RoundedRectangle(cornerRadius: 18)
                             .fill(.ultraThinMaterial)
                             .overlay(RoundedRectangle(cornerRadius: 18)
-                                .stroke(kGreen.opacity(0.3), lineWidth: 1))
+                                .stroke(.white.opacity(0.15), lineWidth: 1))
                     )
-                    .shadow(color: kGreen.opacity(0.2), radius: 10)
+                    .shadow(color: .white.opacity(0.1), radius: 10)
 
                     Button(action: { ocrVM.cancel() }) {
                         Text("Annuler")
@@ -698,7 +645,7 @@ struct SearchHistorySheet: View {
                             Button(action: { onSelect(item) }) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "magnifyingglass")
-                                        .foregroundColor(kGreen)
+                                        .foregroundColor(.white.opacity(0.4))
                                     Text(item)
                                         .foregroundColor(.white)
                                         .lineLimit(1)
@@ -734,60 +681,203 @@ struct SearchHistorySheet: View {
     }
 }
 
-// MARK: - FavoriteOnboardingSheet
+// MARK: - QuickSaveSheet
 
-struct FavoriteOnboardingSheet: View {
-    let onChooseHome:    () -> Void
-    let onChooseLibrary: () -> Void
+struct QuickSaveSheet: View {
+    let pageURL:   String
+    let pageTitle: String
+
+    @EnvironmentObject var libraryManager: LibraryManager
     @Environment(\.dismiss) private var dismiss
+
+    @State private var webtoonName = ""
+
+    private var allWebtoons: [(webtoon: LibraryWebtoon, categoryName: String)] {
+        let uncat = libraryManager.uncategorizedWebtoons.map { ($0, "") }
+        let cat   = libraryManager.categories.flatMap { c in c.webtoons.map { ($0, c.name) } }
+        return uncat + cat
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 kDarkBG.ignoresSafeArea()
-                VStack(spacing: 22) {
-                    Text("Où ranger ce favori ?")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                    Text("Choisissez entre un accès rapide sur l'écran d'accueil ou l'organisation dans la Librairie (catégorie/webtoon).")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                    VStack(spacing: 12) {
-                        Button(action: onChooseHome) {
-                            Text("Favori Accueil")
-                                .font(.system(size: 15, weight: .semibold))
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+
+                        // ── URL preview ───────────────────────────────────
+                        HStack(spacing: 10) {
+                            FaviconView(urlString: pageURL, size: 26)
+                            Text(pageURL)
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.3))
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+
+                        // ── Nom (auto-rempli) ─────────────────────────────
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NOM DU WEBTOON")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.3))
+                                .tracking(1.2)
+                                .padding(.horizontal, 4)
+                            TextField("Titre", text: $webtoonName)
+                                .font(.system(size: 15))
                                 .foregroundColor(.white)
-                                .shadow(color: .white.opacity(0.4), radius: 6)
-                                .padding(.vertical, 12).frame(maxWidth: .infinity)
+                                .tint(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 14)
                                 .background(
                                     RoundedRectangle(cornerRadius: 14)
-                                        .fill(Color.white.opacity(0.1))
-                                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.2), lineWidth: 1))
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(RoundedRectangle(cornerRadius: 14)
+                                            .stroke(.white.opacity(0.1), lineWidth: 1))
                                 )
                         }
-                        Button(action: onChooseLibrary) {
-                            Text("Marque-page Librairie")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.55))
-                                .padding(.vertical, 12).frame(maxWidth: .infinity)
-                                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.05)))
-                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.1), lineWidth: 1))
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+
+                        // ── Nouveau webtoon ───────────────────────────────
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            let name = webtoonName.trimmingCharacters(in: .whitespaces)
+                            libraryManager.quickAddWebtoon(
+                                name: name.isEmpty ? pageURL : name,
+                                siteURL: pageURL
+                            )
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .white.opacity(0.7), radius: 6)
+                                Text("Nouveau webtoon")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .white.opacity(0.4), radius: 5)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(RoundedRectangle(cornerRadius: 16)
+                                        .stroke(.white.opacity(0.18), lineWidth: 1))
+                            )
+                            .padding(.horizontal, 20)
+                        }
+                        .buttonStyle(.plain)
+
+                        // ── Associer à un webtoon existant ────────────────
+                        if !allWebtoons.isEmpty {
+                            HStack {
+                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                                Text("ou associer à")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.22))
+                                    .padding(.horizontal, 10)
+                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 18)
+
+                            VStack(spacing: 0) {
+                                ForEach(Array(allWebtoons.enumerated()), id: \.element.webtoon.id) { idx, item in
+                                    Button {
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        libraryManager.addBookmark(
+                                            title: pageTitle.isEmpty ? webtoonName : pageTitle,
+                                            url:   pageURL,
+                                            toWebtoon: item.webtoon.id
+                                        )
+                                        dismiss()
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            FaviconView(urlString: item.webtoon.siteURL, size: 32)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(item.webtoon.name)
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white.opacity(0.88))
+                                                    .lineLimit(1)
+                                                if !item.categoryName.isEmpty {
+                                                    Text(item.categoryName)
+                                                        .font(.system(size: 11))
+                                                        .foregroundColor(.white.opacity(0.3))
+                                                }
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundColor(.white.opacity(0.2))
+                                        }
+                                        .padding(.horizontal, 20).padding(.vertical, 13)
+                                        .background(Color.white.opacity(0.0001))
+                                    }
+                                    .buttonStyle(.plain)
+                                    if idx < allWebtoons.count - 1 {
+                                        Divider()
+                                            .background(Color.white.opacity(0.07))
+                                            .padding(.horizontal, 20)
+                                    }
+                                }
+                            }
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(RoundedRectangle(cornerRadius: 16)
+                                        .stroke(.white.opacity(0.1), lineWidth: 1))
+                            )
+                            .padding(.horizontal, 20)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 48)
                 }
             }
-            .navigationTitle("Ajouter aux favoris")
+            .navigationTitle("Enregistrer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer") { dismiss() }.foregroundColor(.white.opacity(0.6))
+                    Button("Annuler") { dismiss() }
+                        .foregroundColor(.white.opacity(0.5))
                 }
             }
+            .onAppear { webtoonName = extractTitle(from: pageURL) }
         }
         .preferredColorScheme(.dark)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(.ultraThinMaterial)
+    }
+
+    private func extractTitle(from rawURL: String) -> String {
+        var urlStr = rawURL.trimmingCharacters(in: .whitespaces)
+        if !urlStr.hasPrefix("http") { urlStr = "https://" + urlStr }
+        guard let url = URL(string: urlStr) else { return pageTitle.isEmpty ? "" : pageTitle }
+        let paths = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        for comp in paths.reversed() {
+            let noExt   = (comp.components(separatedBy: "?").first ?? comp)
+                .components(separatedBy: ".").first ?? comp
+            let cleaned = noExt.replacingOccurrences(of: "-", with: " ")
+                               .replacingOccurrences(of: "_", with: " ")
+                               .trimmingCharacters(in: .whitespaces)
+            let isNumeric = cleaned.split(separator: " ").allSatisfy { $0.allSatisfy(\.isNumber) }
+            if cleaned.count > 2 && !isNumeric {
+                return cleaned.split(separator: " ")
+                    .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+                    .joined(separator: " ")
+            }
+        }
+        if !pageTitle.isEmpty { return pageTitle }
+        if let host = url.host?.lowercased() {
+            let stripped = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+            let part = stripped.components(separatedBy: ".").first ?? stripped
+            return part.prefix(1).uppercased() + part.dropFirst()
+        }
+        return ""
     }
 }
 
@@ -928,13 +1018,14 @@ private struct SearchBarOverlay: View {
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(kGreen)
+                        .foregroundColor(.white.opacity(0.5))
+                        .shadow(color: .white.opacity(0.4), radius: 4)
 
                     TextField("URL ou recherche…", text: $text)
                         .focused($isFocused)
                         .font(.system(size: 16))
                         .foregroundColor(.white)
-                        .tint(kGreen)
+                        .tint(.white)
                         .keyboardType(.webSearch)
                         .submitLabel(.go)
                         .autocorrectionDisabled()
@@ -960,15 +1051,9 @@ private struct SearchBarOverlay: View {
                         .fill(.ultraThinMaterial)
                         .overlay(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [kGreen.opacity(0.5), kGreen.opacity(0.15)],
-                                        startPoint: .topLeading, endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
+                                .stroke(.white.opacity(0.18), lineWidth: 1)
                         )
-                        .shadow(color: kGreen.opacity(0.15), radius: 16, y: -4)
+                        .shadow(color: .white.opacity(0.06), radius: 16, y: -4)
                         .shadow(color: .black.opacity(0.3), radius: 10, y: -2)
                 )
                 .padding(.horizontal, 12)
