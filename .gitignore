@@ -25,3 +25,12 @@ Carthage/Build/
 
 # macOS
 .DS_Store
+
+# Fastlane build/output artifacts
+meowToon/build/
+meowToon/fastlane/report.xml
+meowToon/fastlane/screenshots/
+meowToon/fastlane/test_output/
+
+# Marketing slides generator (Node)
+meowToon/app-store-screenshots/node_modules/

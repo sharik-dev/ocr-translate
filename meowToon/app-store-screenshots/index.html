@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --green: #00D564;
+    --dark:  #0D0D12;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; font-family: "Baloo 2", system-ui, sans-serif; }
+
+  .slide {
+    position: relative;
+    width: 1320px;
+    height: 2868px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ---- backgrounds (coloré) ---- */
+  .bg1 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #16E576 0%, #06A85A 38%, #056F4A 72%, #033B36 100%); }
+  .bg2 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #9B5CFF 0%, #6A2DE0 40%, #3C1599 75%, #1B0B47 100%); }
+  .bg3 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #FF8A3D 0%, #FF5E8A 42%, #E0367A 74%, #6E1248 100%); }
+
+  /* ---- decorative blobs ---- */
+  .blob { position: absolute; border-radius: 50%; filter: blur(8px); opacity: 0.55; }
+  .b-a { width: 520px; height: 520px; left: -160px; top: 380px; background: rgba(255,255,255,0.10); filter: blur(60px); }
+  .b-b { width: 360px; height: 360px; right: -120px; top: 1100px; background: rgba(255,255,255,0.12); filter: blur(50px); }
+  .ring { position: absolute; border-radius: 50%; border: 3px solid rgba(255,255,255,0.18); }
+  .r1 { width: 220px; height: 220px; right: 120px; top: 360px; }
+  .r2 { width: 120px; height: 120px; left: 140px; top: 760px; }
+  .dot { position: absolute; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+
+  /* ---- caption ---- */
+  .cap { position: relative; z-index: 5; width: 100%; padding: 200px 110px 0; text-align: center; }
+  .label {
+    font-size: 40px; font-weight: 700; letter-spacing: 6px;
+    color: rgba(255,255,255,0.78); text-transform: uppercase; margin-bottom: 26px;
+  }
+  .headline {
+    font-size: 138px; font-weight: 800; line-height: 0.98; color: #fff;
+    text-shadow: 0 10px 40px rgba(0,0,0,0.28);
+  }
+  .accent { color: #fff; }
+  .bg1 .label { color: rgba(255,255,255,0.85); }
+
+  /* app icon chip for hero */
+  .icon {
+    width: 150px; height: 150px; border-radius: 34px; margin: 0 auto 40px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35); display: block; object-fit: cover;
+  }
+
+  /* ---- phone ---- */
+  .phone-wrap {
+    position: absolute; left: 50%; bottom: 0;
+    width: 1022px; /* overwritten inline by scale */
+  }
+  .phone {
+    position: relative; width: 100%;
+    aspect-ratio: 1022 / 2082;
+    filter: drop-shadow(0 40px 80px rgba(0,0,0,0.45));
+  }
+  .phone > img.frame { display: block; width: 100%; height: 100%; }
+  .screen {
+    position: absolute; overflow: hidden;
+    left: 5.088%; top: 2.209%; width: 89.82%; height: 95.58%;
+    border-radius: 13.72% / 6.33%;
+  }
+  .screen > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+</style>
+</head>
+<body>
+
+  <!-- SLIDE 1 — Accueil / hero -->
+  <div class="slide bg1" id="slide-1">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r1"></div><div class="dot" style="left:200px;top:520px"></div>
+    <div class="dot" style="right:240px;top:980px"></div>
+    <div class="cap">
+      <img class="icon" src="public/app-icon.png" alt="" />
+      <div class="label">meowToon</div>
+      <div class="headline">Tes webtoons,<br/>tous réunis.</div>
+    </div>
+    <div class="phone-wrap" style="width:980px;transform:translateX(-50%) translateY(20%);">
+      <div class="phone"><img class="frame" src="public/mockup.png" alt=""/>
+        <div class="screen"><img src="public/screenshots/home.png" alt=""/></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2 — Navigateur / sans pub (contrast) -->
+  <div class="slide bg2" id="slide-2">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r2"></div><div class="dot" style="right:180px;top:420px"></div>
+    <div class="dot" style="left:240px;top:1180px"></div>
+    <div class="cap">
+      <div class="label">Navigateur intégré</div>
+      <div class="headline">Navigue<br/>sans pubs.</div>
+    </div>
+    <div class="phone-wrap" style="width:1000px;transform:translateX(-50%) translateY(18%) rotate(-4deg);">
+      <div class="phone"><img class="frame" src="public/mockup.png" alt=""/>
+        <div class="screen"><img src="public/screenshots/browser.png" alt=""/></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3 — Réglages / traduction -->
+  <div class="slide bg3" id="slide-3">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r1" style="top:300px;right:160px"></div>
+    <div class="dot" style="left:180px;top:600px"></div>
+    <div class="dot" style="right:220px;top:1040px"></div>
+    <div class="cap">
+      <div class="label">Traduction OCR</div>
+      <div class="headline">Traduis n'importe<br/>quelle page.</div>
+    </div>
+    <div class="phone-wrap" style="width:980px;transform:translateX(-50%) translateY(20%);">
+      <div class="phone"><img class="frame" src="public/mockup.png" alt=""/>
+        <div class="screen"><img src="public/screenshots/settings.png" alt=""/></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
