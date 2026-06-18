@@ -6,21 +6,11 @@ import Translation
 let kGreen  = Color(red: 0.0, green: 0.835, blue: 0.392)
 let kDarkBG = Color(red: 0.05, green: 0.05, blue: 0.07)
 
-// MARK: - Persisted bubble position helpers
+// MARK: - Default bubble position (no persistence — resets every app launch)
 
-private func loadBubblePos() -> CGPoint {
-    let x = UserDefaults.standard.double(forKey: "navBubble.x")
-    let y = UserDefaults.standard.double(forKey: "navBubble.y")
-    guard x != 0 || y != 0 else {
-        return CGPoint(x: UIScreen.main.bounds.width / 2,
-                       y: UIScreen.main.bounds.height - 90)
-    }
-    return CGPoint(x: x, y: y)
-}
-
-private func saveBubblePos(_ p: CGPoint) {
-    UserDefaults.standard.set(Double(p.x), forKey: "navBubble.x")
-    UserDefaults.standard.set(Double(p.y), forKey: "navBubble.y")
+private func defaultBubblePos() -> CGPoint {
+    CGPoint(x: UIScreen.main.bounds.width / 2,
+            y: UIScreen.main.bounds.height - 90)
 }
 
 // MARK: - ContentView
@@ -39,15 +29,18 @@ struct ContentView: View {
     // Sheets / dialogs
     @State private var showLibrary   = false
     @State private var showSettings  = false
-    @State private var showQuickSave = false
     @State private var showTabGrid   = false
+
+    // Save-to-favorites feedback toast
+    @State private var showSaveToast  = false
+    @State private var saveToastMsg   = ""
 
     @State private var showHistory   = false
     @State private var searchHistory: [String] = UserDefaults.standard.stringArray(forKey: "search.history") ?? []
 
     // Nav bar collapse / drag bubble
     @State        private var navExpanded    = true
-    @State        private var bubblePos      = loadBubblePos()
+    @State        private var bubblePos      = defaultBubblePos()
     @GestureState private var bubbleDrag: CGSize = .zero
     @State        private var bubbleHasDragged = false
 
@@ -74,7 +67,7 @@ struct ContentView: View {
     @StateObject private var _fallbackVM = WebViewModel()
 
     private var isPageSaved: Bool {
-        libraryManager.isURLSaved(activeVM.urlString)
+        settingsVM.favorites.contains(where: { $0.urlString == activeVM.urlString })
     }
 
     // MARK: - Body
@@ -102,7 +95,6 @@ struct ContentView: View {
                 if !isInBrowser {
                     HomeContent()
                         .environmentObject(settingsVM)
-                        .environmentObject(libraryManager)
                         .environmentObject(navigator)
                         .transition(.opacity)
                 }
@@ -116,13 +108,14 @@ struct ContentView: View {
                     }
                 }
 
-                // ── Floating OCR / Translate button (toujours visible) ────
-                if !ocrVM.isProcessing {
+                // ── Floating OCR / Translate button ──────────────────────
+                if !ocrVM.isProcessing && settingsVM.showTranslateButton {
                     FloatingBubbleButton(
                         position: $ocrBtnPos,
                         screenWidth: geo.size.width,
                         icon: "text.viewfinder",
-                        dimmed: !settingsVM.translationSettings.isOCREnabled
+                        dimmed: !settingsVM.translationSettings.isOCREnabled,
+                        globalOpacity: settingsVM.floatingButtonOpacity
                     ) {
                         if settingsVM.translationSettings.isOCREnabled {
                             Task { await triggerOCR() }
@@ -132,16 +125,41 @@ struct ContentView: View {
                     }
                 }
 
-                // ── Floating Favorite button (toujours visible) ───────────
-                FloatingBubbleButton(
-                    position: $favBtnPos,
-                    screenWidth: geo.size.width,
-                    icon: isPageSaved ? "bookmark.fill" : "bookmark",
-                    dimmed: !isInBrowser || activeVM.urlString.isEmpty
-                ) {
-                    guard isInBrowser && !activeVM.urlString.isEmpty else { return }
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    showQuickSave = true
+                // ── Floating Favorite button ──────────────────────────────
+                if settingsVM.showFavoriteButton {
+                    FloatingBubbleButton(
+                        position: $favBtnPos,
+                        screenWidth: geo.size.width,
+                        icon: isPageSaved ? "bookmark.fill" : "bookmark",
+                        dimmed: !isInBrowser || activeVM.urlString.isEmpty,
+                        globalOpacity: settingsVM.floatingButtonOpacity
+                    ) {
+                        guard isInBrowser && !activeVM.urlString.isEmpty else { return }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Task { await saveFavoriteWithScreenshot() }
+                    }
+                }
+
+
+                // ── Toast confirmation ────────────────────────────────────
+                if showSaveToast {
+                    VStack {
+                        Spacer()
+                        Text(saveToastMsg)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20).padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(Capsule().stroke(.white.opacity(0.2), lineWidth: 1))
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        Spacer().frame(height: 110)
+                    }
+                    .zIndex(60)
+                    .allowsHitTesting(false)
                 }
 
                 // ── Persistent nav bar ────────────────────────────────────
@@ -167,7 +185,12 @@ struct ContentView: View {
                                 tabManager.setInBrowser(false)
                             },
                             onShowSettings: { showSettings = true },
-                            onShowTabs:   { showTabGrid = true },
+                            onShowTabs: {
+                                Task {
+                                    await tabManager.captureActiveTabThumbnail()
+                                    showTabGrid = true
+                                }
+                            },
                             onCollapse:   {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                     navExpanded = false
@@ -183,6 +206,7 @@ struct ContentView: View {
                 // ── Collapsed draggable bubble ────────────────────────────
                 if !navExpanded {
                     navBubble
+                        .opacity(settingsVM.floatingButtonOpacity)
                         .position(
                             x: bubblePos.x + bubbleDrag.width,
                             y: bubblePos.y + bubbleDrag.height
@@ -204,7 +228,6 @@ struct ContentView: View {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                         bubblePos = final
                                     }
-                                    saveBubblePos(final)
                                     DispatchQueue.main.async { bubbleHasDragged = false }
                                 }
                         )
@@ -316,10 +339,6 @@ struct ContentView: View {
                 .environmentObject(settingsVM)
                 .environmentObject(ocrVM)
         }
-        .sheet(isPresented: $showQuickSave) {
-            QuickSaveSheet(pageURL: activeVM.urlString, pageTitle: activeVM.title)
-                .environmentObject(libraryManager)
-        }
         .sheet(isPresented: $showHistory) {
             SearchHistorySheet(
                 items: searchHistory,
@@ -421,6 +440,66 @@ struct ContentView: View {
         )
     }
 
+    // MARK: - Save favorite with screenshot
+
+    @MainActor
+    private func saveFavoriteWithScreenshot() async {
+        let url   = activeVM.urlString
+        let title = activeVM.title.isEmpty ? url : activeVM.title
+
+        // Toggle: if already saved, remove it
+        if let idx = settingsVM.favorites.firstIndex(where: { $0.urlString == url }) {
+            settingsVM.removeFavorite(at: IndexSet(integer: idx))
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveToastMsg  = "Retiré des favoris"
+                showSaveToast = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                withAnimation { self.showSaveToast = false }
+            }
+            return
+        }
+
+        // Take a screenshot and scale it down to a compact thumbnail.
+        // Use aspect-FILL cropping (not stretching) to a 3:2 box.
+        var thumbnailData: Data?
+        if let raw = await activeVM.takeSnapshot() {
+            let targetSize  = CGSize(width: 300, height: 200)
+            let sourceSize  = raw.size
+            // scaledToFill behaviour: pick the larger ratio so the image covers the box
+            let scale = max(
+                targetSize.width  / max(sourceSize.width,  1),
+                targetSize.height / max(sourceSize.height, 1)
+            )
+            let scaledSize = CGSize(width:  sourceSize.width  * scale,
+                                    height: sourceSize.height * scale)
+            let originX = (targetSize.width  - scaledSize.width)  / 2
+            let originY = (targetSize.height - scaledSize.height) / 2
+
+            let renderer = UIGraphicsImageRenderer(size: targetSize)
+            let thumb = renderer.image { _ in
+                raw.draw(in: CGRect(x: originX, y: originY,
+                                    width: scaledSize.width, height: scaledSize.height))
+            }
+            thumbnailData = thumb.jpegData(compressionQuality: 0.65)
+        }
+
+        let site = FavoriteSite(
+            name: title,
+            urlString: url,
+            type: .site,
+            thumbnailData: thumbnailData
+        )
+        settingsVM.addFavorite(site)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            saveToastMsg  = "✓ Ajouté aux favoris"
+            showSaveToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation { self.showSaveToast = false }
+        }
+    }
+
     // MARK: - OCR processing overlay
 
     private var ocrProcessingOverlay: some View {
@@ -500,6 +579,7 @@ private struct TabNavBar: View {
 
             // Settings
             navBtn("gear", action: onShowSettings)
+                .accessibilityIdentifier("nav.settings")
 
             // Tab switcher — shows count badge
             tabCountButton
@@ -681,214 +761,15 @@ struct SearchHistorySheet: View {
     }
 }
 
-// MARK: - QuickSaveSheet
-
-struct QuickSaveSheet: View {
-    let pageURL:   String
-    let pageTitle: String
-
-    @EnvironmentObject var libraryManager: LibraryManager
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var webtoonName = ""
-
-    private var allWebtoons: [(webtoon: LibraryWebtoon, categoryName: String)] {
-        let uncat = libraryManager.uncategorizedWebtoons.map { ($0, "") }
-        let cat   = libraryManager.categories.flatMap { c in c.webtoons.map { ($0, c.name) } }
-        return uncat + cat
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                kDarkBG.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-
-                        // ── URL preview ───────────────────────────────────
-                        HStack(spacing: 10) {
-                            FaviconView(urlString: pageURL, size: 26)
-                            Text(pageURL)
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.3))
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-
-                        // ── Nom (auto-rempli) ─────────────────────────────
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("NOM DU WEBTOON")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.3))
-                                .tracking(1.2)
-                                .padding(.horizontal, 4)
-                            TextField("Titre", text: $webtoonName)
-                                .font(.system(size: 15))
-                                .foregroundColor(.white)
-                                .tint(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(.ultraThinMaterial)
-                                        .overlay(RoundedRectangle(cornerRadius: 14)
-                                            .stroke(.white.opacity(0.1), lineWidth: 1))
-                                )
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-
-                        // ── Nouveau webtoon ───────────────────────────────
-                        Button {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            let name = webtoonName.trimmingCharacters(in: .whitespaces)
-                            libraryManager.quickAddWebtoon(
-                                name: name.isEmpty ? pageURL : name,
-                                siteURL: pageURL
-                            )
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .shadow(color: .white.opacity(0.7), radius: 6)
-                                Text("Nouveau webtoon")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .shadow(color: .white.opacity(0.4), radius: 5)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20).padding(.vertical, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(RoundedRectangle(cornerRadius: 16)
-                                        .stroke(.white.opacity(0.18), lineWidth: 1))
-                            )
-                            .padding(.horizontal, 20)
-                        }
-                        .buttonStyle(.plain)
-
-                        // ── Associer à un webtoon existant ────────────────
-                        if !allWebtoons.isEmpty {
-                            HStack {
-                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
-                                Text("ou associer à")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.white.opacity(0.22))
-                                    .padding(.horizontal, 10)
-                                Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 18)
-
-                            VStack(spacing: 0) {
-                                ForEach(Array(allWebtoons.enumerated()), id: \.element.webtoon.id) { idx, item in
-                                    Button {
-                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                        libraryManager.addBookmark(
-                                            title: pageTitle.isEmpty ? webtoonName : pageTitle,
-                                            url:   pageURL,
-                                            toWebtoon: item.webtoon.id
-                                        )
-                                        dismiss()
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            FaviconView(urlString: item.webtoon.siteURL, size: 32)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(item.webtoon.name)
-                                                    .font(.system(size: 14, weight: .medium))
-                                                    .foregroundColor(.white.opacity(0.88))
-                                                    .lineLimit(1)
-                                                if !item.categoryName.isEmpty {
-                                                    Text(item.categoryName)
-                                                        .font(.system(size: 11))
-                                                        .foregroundColor(.white.opacity(0.3))
-                                                }
-                                            }
-                                            Spacer()
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 11, weight: .medium))
-                                                .foregroundColor(.white.opacity(0.2))
-                                        }
-                                        .padding(.horizontal, 20).padding(.vertical, 13)
-                                        .background(Color.white.opacity(0.0001))
-                                    }
-                                    .buttonStyle(.plain)
-                                    if idx < allWebtoons.count - 1 {
-                                        Divider()
-                                            .background(Color.white.opacity(0.07))
-                                            .padding(.horizontal, 20)
-                                    }
-                                }
-                            }
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(RoundedRectangle(cornerRadius: 16)
-                                        .stroke(.white.opacity(0.1), lineWidth: 1))
-                            )
-                            .padding(.horizontal, 20)
-                        }
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 48)
-                }
-            }
-            .navigationTitle("Enregistrer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                        .foregroundColor(.white.opacity(0.5))
-                }
-            }
-            .onAppear { webtoonName = extractTitle(from: pageURL) }
-        }
-        .preferredColorScheme(.dark)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(.ultraThinMaterial)
-    }
-
-    private func extractTitle(from rawURL: String) -> String {
-        var urlStr = rawURL.trimmingCharacters(in: .whitespaces)
-        if !urlStr.hasPrefix("http") { urlStr = "https://" + urlStr }
-        guard let url = URL(string: urlStr) else { return pageTitle.isEmpty ? "" : pageTitle }
-        let paths = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
-        for comp in paths.reversed() {
-            let noExt   = (comp.components(separatedBy: "?").first ?? comp)
-                .components(separatedBy: ".").first ?? comp
-            let cleaned = noExt.replacingOccurrences(of: "-", with: " ")
-                               .replacingOccurrences(of: "_", with: " ")
-                               .trimmingCharacters(in: .whitespaces)
-            let isNumeric = cleaned.split(separator: " ").allSatisfy { $0.allSatisfy(\.isNumber) }
-            if cleaned.count > 2 && !isNumeric {
-                return cleaned.split(separator: " ")
-                    .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
-                    .joined(separator: " ")
-            }
-        }
-        if !pageTitle.isEmpty { return pageTitle }
-        if let host = url.host?.lowercased() {
-            let stripped = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-            let part = stripped.components(separatedBy: ".").first ?? stripped
-            return part.prefix(1).uppercased() + part.dropFirst()
-        }
-        return ""
-    }
-}
-
 // MARK: - FloatingBubbleButton
 
 struct FloatingBubbleButton: View {
     @Binding var position: CGPoint
-    let screenWidth: CGFloat
-    let icon:        String
-    var dimmed:      Bool = false
-    let action:      () -> Void
+    let screenWidth:   CGFloat
+    let icon:          String
+    var dimmed:        Bool   = false
+    var globalOpacity: Double = 1.0
+    let action:        () -> Void
 
     @GestureState private var drag: CGSize = .zero
     @State private var hasDragged = false
@@ -916,6 +797,7 @@ struct FloatingBubbleButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .opacity(globalOpacity)
         .scaleEffect(drag == .zero ? 1 : 1.07)
         .animation(.spring(response: 0.2, dampingFraction: 0.6), value: drag == .zero)
         .position(

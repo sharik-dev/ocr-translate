@@ -1,0 +1,17 @@
+# Devices to capture — keep to 2 for speed (largest + standard)
+devices([
+  "iPhone 17 Pro Max",
+  "iPhone 17",
+])
+
+languages(["fr-FR"])
+
+scheme("meowToonUITests")
+
+output_directory("./fastlane/screenshots")
+clear_previous_screenshots(true)
+
+launch_arguments(["-UITestMode YES"])
+
+# Some setups choke on parallel simulators — keep serial for reliability
+concurrent_simulators(false)

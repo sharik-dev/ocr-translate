@@ -7,46 +7,46 @@ private let hText   = Color.white.opacity(0.88)
 private let hSub    = Color.white.opacity(0.38)
 private let hAccent = Color.white.opacity(0.55)
 
-enum WebtoonSort: String, CaseIterable {
-    case nameAZ = "A → Z"
-    case nameZA = "Z → A"
-    case recent = "Récent"
+// MARK: - Group model
+
+private struct FavoriteGroup: Identifiable {
+    let host: String       // normalized host (no www.)
+    let favorites: [FavoriteSite]
+    var id: String { host.isEmpty ? UUID().uuidString : host }
+    /// Most recent first (we assume favorites are appended in chronological order)
+    var sortedFavorites: [FavoriteSite] { favorites.reversed() }
+    /// URL string used to fetch a representative favicon
+    var representativeURL: String { favorites.first?.urlString ?? "" }
 }
 
+private func normalizedHost(_ urlString: String) -> String {
+    guard let host = URL(string: urlString)?.host?.lowercased() else { return urlString }
+    return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+}
+
+// MARK: - HomeContent
+
 struct HomeContent: View {
-    @EnvironmentObject var settingsVM:     SettingsViewModel
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var navigator:      AppNavigator
+    @EnvironmentObject var settingsVM: SettingsViewModel
+    @EnvironmentObject var navigator:  AppNavigator
 
-    @State private var showingAdd          = false
-    @State private var webtoonDetail:      WebtoonDetailItem? = nil
-    @State private var selectedCategoryID: UUID?              = nil
-    @State private var sortOrder:          WebtoonSort        = .nameAZ
+    @State private var showingAdd: Bool = false
+    @State private var openedGroup: FavoriteGroup? = nil
 
-    private struct WebtoonDetailItem: Identifiable {
-        let id = UUID(); let webtoon: LibraryWebtoon; let categoryID: UUID?
+    private var sites: [FavoriteSite] {
+        settingsVM.favorites.filter { $0.type == .site }
     }
 
-    private var filteredWebtoons: [(webtoon: LibraryWebtoon, categoryID: UUID?)] {
-        let all: [(webtoon: LibraryWebtoon, categoryID: UUID?)]
-        if let id = selectedCategoryID {
-            all = libraryManager.categories.filter { $0.id == id }
-                .flatMap { c in c.webtoons.map { ($0, Optional(c.id)) } }
-        } else {
-            let categorized = libraryManager.categories
-                .flatMap { c in c.webtoons.map { ($0, Optional(c.id)) } }
-            let uncategorized = libraryManager.uncategorizedWebtoons
-                .map { ($0, UUID?.none) }
-            all = categorized + uncategorized
-        }
-        switch sortOrder {
-        case .nameAZ: return all.sorted { $0.webtoon.name < $1.webtoon.name }
-        case .nameZA: return all.sorted { $0.webtoon.name > $1.webtoon.name }
-        case .recent: return all.sorted {
-            ($0.webtoon.bookmarks.first?.savedAt ?? .distantPast) >
-            ($1.webtoon.bookmarks.first?.savedAt ?? .distantPast)
-        }
-        }
+    private var groups: [FavoriteGroup] {
+        let dict = Dictionary(grouping: sites) { normalizedHost($0.urlString) }
+        return dict.map { FavoriteGroup(host: $0.key, favorites: $0.value) }
+            // Sites with more favorites first, then alpha
+            .sorted {
+                if $0.favorites.count != $1.favorites.count {
+                    return $0.favorites.count > $1.favorites.count
+                }
+                return $0.host < $1.host
+            }
     }
 
     var body: some View {
@@ -72,7 +72,7 @@ struct HomeContent: View {
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
                                 .foregroundColor(hText)
                                 .shadow(color: .white.opacity(0.3), radius: 8)
-                            Text("Votre espace webtoon")
+                            Text("Votre navigateur")
                                 .font(.system(size: 13))
                                 .foregroundColor(hSub)
                         }
@@ -85,26 +85,13 @@ struct HomeContent: View {
                     .padding(.top, 20)
                     .padding(.bottom, 8)
 
-                    // Ligne déco
                     Rectangle()
                         .fill(LinearGradient(colors: [.clear, .white.opacity(0.1), .clear],
                                              startPoint: .leading, endPoint: .trailing))
                         .frame(height: 1).padding(.horizontal, 20).padding(.bottom, 22)
 
-                    // ── Accès rapide ──────────────────────────────────────
-                    siteSectionView
-                        .padding(.bottom, 28)
-
-                    // ── Séparateur ────────────────────────────────────────
-                    HStack(spacing: 6) {
-                        Rectangle().fill(hBorder).frame(height: 1)
-                        Text("·").foregroundColor(hAccent.opacity(0.3)).font(.system(size: 11))
-                        Rectangle().fill(hBorder).frame(height: 1)
-                    }
-                    .padding(.horizontal, 20).padding(.bottom, 22)
-
-                    // ── Webtoons ──────────────────────────────────────────
-                    webtoonSectionView
+                    // ── Favoris ───────────────────────────────────────────
+                    favoritesSection
                         .padding(.bottom, 120)
                 }
             }
@@ -112,26 +99,30 @@ struct HomeContent: View {
         .sheet(isPresented: $showingAdd) {
             FavoriteSiteFormView()
                 .environmentObject(settingsVM)
-                .environmentObject(libraryManager)
         }
-        .sheet(item: $webtoonDetail) { item in
-            NavigationStack {
-                WebtoonDetailView(categoryID: item.categoryID ?? UUID(), webtoon: item.webtoon)
-                    .environmentObject(libraryManager)
-                    .environmentObject(navigator)
+        .sheet(item: $openedGroup) { group in
+            FavoriteGroupDetailView(group: group) { fav in
+                navigator.navigate(to: fav.urlString)
+                openedGroup = nil
+            } onDelete: { fav in
+                if let i = settingsVM.favorites.firstIndex(where: { $0.id == fav.id }) {
+                    settingsVM.removeFavorite(at: IndexSet(integer: i))
+                }
             }
-            .preferredColorScheme(.dark)
+            .environmentObject(settingsVM)
+            .presentationDetents([.medium, .large])
+            .presentationBackground(.ultraThinMaterial)
         }
     }
 
-    // MARK: - Accès rapide
+    // MARK: - Favorites grid
 
     @ViewBuilder
-    private var siteSectionView: some View {
-        let sites = settingsVM.favorites.filter { $0.type == .site }
+    private var favoritesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+
             HStack {
-                Text("ACCÈS RAPIDE")
+                Text("FAVORIS")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.28))
                     .tracking(1.5)
@@ -144,290 +135,380 @@ struct HomeContent: View {
             }
             .padding(.horizontal, 20)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    ForEach(sites) { fav in
-                        Button { navigator.navigate(to: fav.urlString) } label: {
-                            VStack(spacing: 7) {
-                                ZStack {
-                                    Circle().fill(hCard)
-                                        .overlay(Circle().stroke(hBorder, lineWidth: 1))
-                                        .frame(width: 56, height: 56)
-                                    FaviconView(urlString: fav.urlString, size: 32)
-                                }
-                                .shadow(color: .white.opacity(0.08), radius: 6)
-                                Text(fav.name)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .lineLimit(1)
-                                    .frame(width: 60)
-                            }
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                if let i = settingsVM.favorites.firstIndex(where: { $0.id == fav.id }) {
-                                    settingsVM.removeFavorite(at: IndexSet(integer: i))
-                                }
-                            } label: { Label("Supprimer", systemImage: "trash") }
-                        }
-                    }
-                    // Bouton ajouter
-                    Button { showingAdd = true } label: {
-                        VStack(spacing: 7) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                                    .foregroundColor(.white.opacity(0.16))
-                                    .frame(width: 56, height: 56)
-                                Text("+").font(.system(size: 20, weight: .light))
-                                    .foregroundColor(.white.opacity(0.3))
-                            }
-                            Text("Ajouter").font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white.opacity(0.25))
-                                .frame(width: 60)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-
-    // MARK: - Webtoons
-
-    @ViewBuilder
-    private var webtoonSectionView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-
-            // Titre + tri
-            HStack {
-                Text("MES WEBTOONS")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.28))
-                    .tracking(1.5)
-                Spacer(minLength: 8)
-                Menu {
-                    ForEach(WebtoonSort.allCases, id: \.self) { s in
-                        Button {
-                            withAnimation { sortOrder = s }
-                        } label: {
-                            HStack {
-                                Text(s.rawValue)
-                                if sortOrder == s { Image(systemName: "checkmark") }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 10, weight: .medium))
-                        Text(sortOrder.rawValue)
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.white.opacity(0.35))
-                }
-            }
-            .padding(.horizontal, 20)
-
-            // Filtres catégorie (avec suppression)
-            if !libraryManager.categories.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        categoryChip(id: nil, label: "Tous", emoji: nil)
-                        ForEach(libraryManager.categories) { cat in
-                            categoryChip(id: cat.id, label: cat.name, emoji: cat.emoji)
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        if let idx = libraryManager.categories.firstIndex(where: { $0.id == cat.id }) {
-                                            if selectedCategoryID == cat.id { selectedCategoryID = nil }
-                                            libraryManager.removeCategory(at: IndexSet(integer: idx))
-                                        }
-                                    } label: { Label("Supprimer la catégorie", systemImage: "trash") }
-                                }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-            }
-
-            // Grille portrait style Webtoon
-            if filteredWebtoons.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundColor(.white.opacity(0.3))
-                        .shadow(color: .white.opacity(0.3), radius: 8)
-                    Text(libraryManager.categories.isEmpty
-                         ? "Ajoutez votre premier webtoon."
-                         : "Aucun webtoon dans cette catégorie.")
+            if groups.isEmpty {
+                VStack(spacing: 14) {
+                    Image(systemName: "bookmark")
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundColor(.white.opacity(0.25))
+                    Text("Aucun favori pour l'instant.\nAppuyez sur 🔖 pendant la navigation.")
                         .font(.system(size: 13))
                         .foregroundColor(hSub)
                         .multilineTextAlignment(.center)
                     Button { showingAdd = true } label: {
-                        Text("Ajouter un webtoon")
+                        Text("Ajouter manuellement")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white.opacity(0.75))
-                            .shadow(color: .white.opacity(0.3), radius: 5)
                             .padding(.horizontal, 20).padding(.vertical, 10)
                             .background(Capsule().fill(hCard)
                                 .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1)))
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 36)
-                .padding(.horizontal, 20)
-                .background(RoundedRectangle(cornerRadius: 16).fill(hCard)
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(hBorder, lineWidth: 1)))
+                .padding(.vertical, 44)
                 .padding(.horizontal, 20)
             } else {
-                // 3 colonnes, covers portrait
-                let cols = [GridItem(.flexible(), spacing: 10),
-                            GridItem(.flexible(), spacing: 10),
-                            GridItem(.flexible(), spacing: 10)]
+                let cols = [GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)]
                 LazyVGrid(columns: cols, spacing: 14) {
-                    ForEach(filteredWebtoons, id: \.webtoon.id) { item in
-                        WebtoonCard(
-                            webtoon:    item.webtoon,
-                            categoryID: item.categoryID,
-                            categories: libraryManager.categories,
-                            onOpenURL:  { url in navigator.navigate(to: url) },
-                            onShowDetail: {
-                                webtoonDetail = WebtoonDetailItem(
-                                    webtoon: item.webtoon, categoryID: item.categoryID)
-                            },
-                            onDelete: {
-                                if let catID = item.categoryID {
-                                    libraryManager.removeWebtoon(id: item.webtoon.id, from: catID)
-                                } else {
-                                    libraryManager.removeUncategorizedWebtoon(id: item.webtoon.id)
-                                }
-                            },
-                            onMoveToCategory: { catID in
-                                libraryManager.moveWebtoon(id: item.webtoon.id, toCategoryID: catID)
+                    ForEach(groups) { group in
+                        if group.favorites.count > 1 {
+                            // Folder card — multiple bookmarks for this site
+                            FolderCard(group: group) {
+                                openedGroup = group
+                            } onDeleteAll: {
+                                let ids = Set(group.favorites.map(\.id))
+                                let indexes = IndexSet(
+                                    settingsVM.favorites.enumerated()
+                                        .filter { ids.contains($0.element.id) }
+                                        .map(\.offset)
+                                )
+                                settingsVM.removeFavorite(at: indexes)
                             }
-                        )
+                        } else if let fav = group.favorites.first {
+                            // Single card — single bookmark
+                            FavoriteCard(fav: fav) {
+                                navigator.navigate(to: fav.urlString)
+                            } onDelete: {
+                                if let i = settingsVM.favorites.firstIndex(where: { $0.id == fav.id }) {
+                                    settingsVM.removeFavorite(at: IndexSet(integer: i))
+                                }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
-                .animation(.easeInOut(duration: 0.2), value: selectedCategoryID)
-                .animation(.easeInOut(duration: 0.2), value: sortOrder)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: groups.count)
             }
         }
-    }
-
-    // MARK: - Category chip
-
-    private func categoryChip(id: UUID?, label: String, emoji: String?) -> some View {
-        let selected = selectedCategoryID == id
-        return Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) {
-                selectedCategoryID = id
-            }
-        } label: {
-            Text(label)
-                .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                .foregroundColor(selected ? .white : .white.opacity(0.45))
-                .shadow(color: selected ? .white.opacity(0.45) : .clear, radius: 5)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule()
-                    .fill(selected ? Color.white.opacity(0.13) : hCard)
-                    .overlay(Capsule().stroke(selected ? .white.opacity(0.28) : hBorder,
-                                              lineWidth: selected ? 1 : 0.8)))
-        }
-        .buttonStyle(.plain)
     }
 }
 
-// MARK: - WebtoonCard (portrait Webtoon-app style)
+// MARK: - FavoriteCard (single)
 
-private struct WebtoonCard: View {
-    let webtoon:          LibraryWebtoon
-    let categoryID:       UUID?
-    let categories:       [LibraryCategory]
-    let onOpenURL:        (String) -> Void
-    let onShowDetail:     () -> Void
-    let onDelete:         () -> Void
-    let onMoveToCategory: (UUID) -> Void
-
-    private var categoryName: String {
-        guard let id = categoryID else { return "" }
-        return categories.first(where: { $0.id == id })?.name ?? ""
-    }
-
-    private var coverGradient: LinearGradient {
-        let raw = webtoon.name.unicodeScalars.reduce(0) { $0 &+ $1.value }
-        let h   = Double(raw % 256) / 255.0
-        return LinearGradient(colors: [
-            Color(hue: h,               saturation: 0.35, brightness: 0.28),
-            Color(hue: (h + 0.15).truncatingRemainder(dividingBy: 1), saturation: 0.28, brightness: 0.18)
-        ], startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
+private struct FavoriteCard: View {
+    let fav:      FavoriteSite
+    let onOpen:   () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
-        Button {
-            guard !webtoon.siteURL.isEmpty else { onShowDetail(); return }
-            onOpenURL(webtoon.siteURL)
-        } label: {
+        Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 0) {
+                ZStack {
+                    if let data = fav.thumbnailData, let img = UIImage(data: data) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        let h = Double(fav.name.unicodeScalars.reduce(0) { $0 &+ $1.value } % 256) / 255.0
+                        LinearGradient(colors: [
+                            Color(hue: h, saturation: 0.35, brightness: 0.28),
+                            Color(hue: (h + 0.15).truncatingRemainder(dividingBy: 1),
+                                  saturation: 0.28, brightness: 0.18)
+                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
 
-                // Cover portrait
-                ZStack(alignment: .bottomLeading) {
-                    coverGradient
-                    FaviconView(urlString: webtoon.siteURL, size: 34).opacity(0.7)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        FaviconView(urlString: fav.urlString, size: 32)
+                            .opacity(0.75)
+                    }
 
-                    // Gradient overlay bas
-                    LinearGradient(colors: [.clear, .black.opacity(0.55)],
+                    LinearGradient(colors: [.clear, .black.opacity(0.5)],
                                    startPoint: .center, endPoint: .bottom)
+
+                    VStack {
+                        Spacer()
+                        HStack {
+                            FaviconView(urlString: fav.urlString, size: 18)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .padding(6)
+                            Spacer()
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
-                .aspectRatio(2/3, contentMode: .fit)
+                .aspectRatio(3 / 2, contentMode: .fit)
                 .clipped()
 
-                // Infos sous la cover
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(webtoon.name)
-                        .font(.system(size: 11, weight: .semibold))
+                    Text(fav.name)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(hText)
-                        .lineLimit(2)
-                        .shadow(color: .white.opacity(0.2), radius: 4)
-
-                    if !categoryName.isEmpty {
-                        Text(categoryName)
-                            .font(.system(size: 9, weight: .medium))
+                        .lineLimit(1)
+                    if let host = URL(string: fav.urlString)?.host {
+                        Text(host.hasPrefix("www.") ? String(host.dropFirst(4)) : host)
+                            .font(.system(size: 10))
                             .foregroundColor(.white.opacity(0.3))
                             .lineLimit(1)
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
             }
         }
         .buttonStyle(.plain)
-        .background(RoundedRectangle(cornerRadius: 10).fill(hCard)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(hBorder, lineWidth: 0.8)))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
+        .accessibilityIdentifier("favoriteCard")
+        .background(RoundedRectangle(cornerRadius: 12).fill(hCard)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(hBorder, lineWidth: 0.8)))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.28), radius: 5, y: 3)
         .contextMenu {
-            if !webtoon.siteURL.isEmpty {
-                Button { onOpenURL(webtoon.siteURL) } label: { Label("Ouvrir", systemImage: "globe") }
-            }
-            if let bm = webtoon.bookmarks.first {
-                Button { onOpenURL(bm.url) } label: { Label("Reprendre", systemImage: "play.fill") }
-            }
-            Button { onShowDetail() } label: { Label("Marque-pages", systemImage: "bookmark") }
-            if categoryID == nil && !categories.isEmpty {
-                Menu {
-                    ForEach(categories) { cat in
-                        Button { onMoveToCategory(cat.id) } label: {
-                            Text(cat.name)
+            Button(action: onOpen) { Label("Ouvrir", systemImage: "globe") }
+            Divider()
+            Button(role: .destructive, action: onDelete) { Label("Supprimer", systemImage: "trash") }
+        }
+    }
+}
+
+// MARK: - FolderCard (multiple bookmarks from same site)
+
+private struct FolderCard: View {
+    let group:        FavoriteGroup
+    let onOpen:       () -> Void
+    let onDeleteAll:  () -> Void
+
+    private var topThumb: Data? { group.sortedFavorites.first?.thumbnailData }
+    private var midThumb: Data? { group.sortedFavorites.dropFirst().first?.thumbnailData ?? topThumb }
+    private var botThumb: Data? { group.sortedFavorites.dropFirst(2).first?.thumbnailData ?? midThumb }
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 0) {
+
+                // ── Stacked thumbnails ──────────────────────────────────
+                ZStack {
+                    // Card 3 (back) — offset & rotated slightly
+                    stackedThumb(data: botThumb, xOffset: 6, yOffset: -3, rotation: 4, opacity: 0.5)
+                    // Card 2 (middle)
+                    stackedThumb(data: midThumb, xOffset: -4, yOffset: -2, rotation: -3, opacity: 0.75)
+                    // Card 1 (front)
+                    stackedThumb(data: topThumb, xOffset: 0, yOffset: 0, rotation: 0, opacity: 1.0)
+
+                    // Bottom-left favicon badge
+                    VStack {
+                        Spacer()
+                        HStack {
+                            FaviconView(urlString: group.representativeURL, size: 18)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .padding(6)
+                            Spacer()
                         }
                     }
-                } label: { Label("Ajouter à une catégorie", systemImage: "folder.badge.plus") }
+
+                    // Count badge (top-right)
+                    VStack {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 3) {
+                                Image(systemName: "square.stack.fill")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text("\(group.favorites.count)")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.black.opacity(0.7))
+                                    .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
+                            )
+                            .padding(6)
+                        }
+                        Spacer()
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(3 / 2, contentMode: .fit)
+                .clipped()
+                .padding(.top, 4)
+
+                // Site name + count
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.host)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(hText)
+                        .lineLimit(1)
+                    Text("\(group.favorites.count) favoris")
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.4))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
             }
+        }
+        .buttonStyle(.plain)
+        .background(RoundedRectangle(cornerRadius: 12).fill(hCard)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(hBorder, lineWidth: 0.8)))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+        .contextMenu {
+            Button(action: onOpen) { Label("Ouvrir les favoris", systemImage: "square.stack") }
             Divider()
-            Button(role: .destructive) { onDelete() } label: { Label("Supprimer", systemImage: "trash") }
+            Button(role: .destructive, action: onDeleteAll) {
+                Label("Tout supprimer", systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stackedThumb(data: Data?,
+                              xOffset: CGFloat,
+                              yOffset: CGFloat,
+                              rotation: Double,
+                              opacity: Double) -> some View {
+        GeometryReader { geo in
+            ZStack {
+                Color(white: 0.08)
+                if let data, let img = UIImage(data: data) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    let h = Double(group.host.unicodeScalars.reduce(0) { $0 &+ $1.value } % 256) / 255.0
+                    LinearGradient(colors: [
+                        Color(hue: h, saturation: 0.35, brightness: 0.28),
+                        Color(hue: (h + 0.15).truncatingRemainder(dividingBy: 1),
+                              saturation: 0.28, brightness: 0.18)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+                LinearGradient(colors: [.clear, .black.opacity(0.4)],
+                               startPoint: .center, endPoint: .bottom)
+            }
+            .frame(width: geo.size.width * 0.92, height: geo.size.height * 0.92)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.white.opacity(0.15), lineWidth: 0.8)
+            )
+            .rotationEffect(.degrees(rotation))
+            .offset(x: xOffset, y: yOffset)
+            .opacity(opacity)
+            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+        }
+    }
+}
+
+// MARK: - FavoriteGroupDetailView (sheet — list of all favorites for a domain)
+
+private struct FavoriteGroupDetailView: View {
+    let group:     FavoriteGroup
+    let onOpen:    (FavoriteSite) -> Void
+    let onDelete:  (FavoriteSite) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                kDarkBG.opacity(0.4).ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        // Header
+                        HStack(spacing: 10) {
+                            FaviconView(urlString: group.representativeURL, size: 32)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(group.host)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("\(group.favorites.count) favori\(group.favorites.count > 1 ? "s" : "")")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.45))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+
+                        // Favorites
+                        ForEach(group.sortedFavorites) { fav in
+                            FavoriteRow(fav: fav, onTap: { onOpen(fav) }, onDelete: { onDelete(fav) })
+                        }
+                    }
+                    .padding(.bottom, 40)
+                }
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                        .foregroundColor(.white)
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct FavoriteRow: View {
+    let fav:      FavoriteSite
+    let onTap:    () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Color(white: 0.10)
+                    if let data = fav.thumbnailData, let img = UIImage(data: data) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        FaviconView(urlString: fav.urlString, size: 22).opacity(0.6)
+                    }
+                }
+                .frame(width: 80, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.1), lineWidth: 0.6))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(fav.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Text(fav.urlString)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.35))
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.25))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(.white.opacity(0.08), lineWidth: 0.8))
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive, action: onDelete) {
+                Label("Supprimer", systemImage: "trash")
+            }
+        }
+        .contextMenu {
+            Button(action: onTap) { Label("Ouvrir", systemImage: "globe") }
+            Divider()
+            Button(role: .destructive, action: onDelete) { Label("Supprimer", systemImage: "trash") }
         }
     }
 }
@@ -435,6 +516,5 @@ private struct WebtoonCard: View {
 #Preview {
     HomeContent()
         .environmentObject(SettingsViewModel())
-        .environmentObject(LibraryManager())
         .environmentObject(AppNavigator())
 }
