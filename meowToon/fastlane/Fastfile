@@ -40,6 +40,39 @@ platform :ios do
     )
   end
 
+  # ── Create the app record on App Store Connect (run once) ───────────────
+  desc "Register the bundle id + create the app on App Store Connect"
+  lane :create_app do
+    config = load_config
+    # Sets Spaceship::ConnectAPI.token from the App Store Connect API key.
+    asc_api_key(config)
+
+    # 1. Register the bundle id in the Developer portal (idempotent).
+    bundle = Spaceship::ConnectAPI::BundleId.all.find { |b| b.identifier == APP_IDENTIFIER }
+    if bundle.nil?
+      bundle = Spaceship::ConnectAPI::BundleId.create(name: "meowToon", identifier: APP_IDENTIFIER, platform: "IOS")
+      UI.success("Registered bundle id #{APP_IDENTIFIER}")
+    else
+      UI.message("Bundle id #{APP_IDENTIFIER} already registered")
+    end
+
+    # 2. Create the app record on App Store Connect (skip if it already exists).
+    existing = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    if existing
+      UI.message("App #{APP_IDENTIFIER} already exists on App Store Connect")
+    else
+      Spaceship::ConnectAPI::App.create(
+        name: "meowToon",
+        version_string: "1.0",
+        sku: "meowToon-2026",
+        primary_locale: "fr-FR",
+        bundle_id: APP_IDENTIFIER,
+        platforms: ["IOS"],
+      )
+      UI.success("Created app meowToon on App Store Connect")
+    end
+  end
+
   # ── Build & upload to TestFlight ────────────────────────────────────────
   desc "Build a signed release and upload it to TestFlight"
   lane :beta do
