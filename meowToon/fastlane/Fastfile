@@ -73,6 +73,24 @@ platform :ios do
     end
   end
 
+  # ── Upload App Store metadata + screenshots (no review submission) ───────
+  desc "Push App Store listing text + marketing screenshots (draft, no submit)"
+  lane :metadata do
+    config  = load_config
+    api_key = asc_api_key(config)
+    deliver(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      metadata_path: "./fastlane/metadata",
+      screenshots_path: "./fastlane/store-screenshots",
+      skip_binary_upload: true,
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true,
+    )
+  end
+
   # ── Build & upload to TestFlight ────────────────────────────────────────
   desc "Build a signed release and upload it to TestFlight"
   lane :beta do

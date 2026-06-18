@@ -1,0 +1,13 @@
+meowToon est ton lecteur de webtoons et ton navigateur, réunis dans une seule app.
+
+Lis tes webtoons, manhwas et scans préférés sans pubs grâce au bloqueur de publicités intégré. Ajoute tes sites en favoris, navigue dans plusieurs onglets, et retrouve tout ton univers d'un seul tap.
+
+• Bloqueur de pub puissant — fini les pop-ups et les redirections
+• Navigateur multi-onglets rapide et fluide
+• Favoris et bibliothèque de webtoons organisée
+• Traduction OCR — traduis n'importe quelle page directement à l'écran
+• Thème sombre élégant, pensé pour la lecture
+
+100 % natif iOS, sans dépendance externe. Une lecture nette, rapide et sans distraction.
+
+Bonne lecture !
