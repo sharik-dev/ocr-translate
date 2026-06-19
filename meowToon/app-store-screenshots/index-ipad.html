@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --green: #00D564;
+    --dark:  #0D0D12;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; font-family: "Baloo 2", system-ui, sans-serif; }
+
+  /* iPad Pro 13" portrait */
+  .slide {
+    position: relative;
+    width: 2064px;
+    height: 2752px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ---- backgrounds (coloré) ---- */
+  .bg1 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #16E576 0%, #06A85A 38%, #056F4A 72%, #033B36 100%); }
+  .bg2 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #9B5CFF 0%, #6A2DE0 40%, #3C1599 75%, #1B0B47 100%); }
+  .bg3 { background: radial-gradient(ellipse 120% 90% at 50% 0%, #FF8A3D 0%, #FF5E8A 42%, #E0367A 74%, #6E1248 100%); }
+
+  /* ---- decorative blobs ---- */
+  .blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+  .b-a { width: 760px; height: 760px; left: -220px; top: 420px; background: rgba(255,255,255,0.10); filter: blur(80px); }
+  .b-b { width: 520px; height: 520px; right: -160px; top: 1200px; background: rgba(255,255,255,0.12); filter: blur(70px); }
+  .ring { position: absolute; border-radius: 50%; border: 4px solid rgba(255,255,255,0.18); }
+  .r1 { width: 320px; height: 320px; right: 220px; top: 420px; }
+  .r2 { width: 180px; height: 180px; left: 240px; top: 880px; }
+  .dot { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+
+  /* ---- caption ---- */
+  .cap { position: relative; z-index: 5; width: 100%; padding: 170px 180px 0; text-align: center; }
+  .label {
+    font-size: 48px; font-weight: 700; letter-spacing: 8px;
+    color: rgba(255,255,255,0.80); text-transform: uppercase; margin-bottom: 30px;
+  }
+  .headline {
+    font-size: 158px; font-weight: 800; line-height: 0.98; color: #fff;
+    text-shadow: 0 12px 48px rgba(0,0,0,0.28);
+  }
+  .bg1 .label { color: rgba(255,255,255,0.88); }
+
+  /* app icon chip for hero */
+  .icon {
+    width: 190px; height: 190px; border-radius: 42px; margin: 0 auto 46px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.35); display: block; object-fit: cover;
+  }
+
+  /* ---- iPad screen card (CSS bezel, no mockup asset) ---- */
+  .pad-wrap {
+    position: absolute; left: 50%; bottom: 0;
+    transform: translateX(-50%) translateY(14%);
+  }
+  .pad {
+    width: 1560px;
+    aspect-ratio: 2064 / 2752;
+    background: #0A0A0E;
+    border-radius: 72px;
+    padding: 22px;
+    box-shadow: 0 50px 110px rgba(0,0,0,0.50);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .pad .screen {
+    width: 100%; height: 100%; overflow: hidden;
+    border-radius: 52px;
+  }
+  .pad .screen > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+</style>
+</head>
+<body>
+
+  <!-- SLIDE 1 — Accueil / hero -->
+  <div class="slide bg1" id="slide-1">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r1"></div><div class="dot" style="left:300px;top:600px"></div>
+    <div class="dot" style="right:360px;top:1080px"></div>
+    <div class="cap">
+      <img class="icon" src="public/app-icon.png" alt="" />
+      <div class="label">meowToon</div>
+      <div class="headline">Tes webtoons,<br/>tous réunis.</div>
+    </div>
+    <div class="pad-wrap">
+      <div class="pad"><div class="screen"><img src="public/screenshots-ipad/home.png" alt=""/></div></div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2 — Navigateur / sans pub -->
+  <div class="slide bg2" id="slide-2">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r2"></div><div class="dot" style="right:280px;top:560px"></div>
+    <div class="dot" style="left:340px;top:1300px"></div>
+    <div class="cap">
+      <div class="label">Navigateur intégré</div>
+      <div class="headline">Navigue<br/>sans pubs.</div>
+    </div>
+    <div class="pad-wrap">
+      <div class="pad"><div class="screen"><img src="public/screenshots-ipad/browser.png" alt=""/></div></div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3 — Réglages / traduction -->
+  <div class="slide bg3" id="slide-3">
+    <div class="blob b-a"></div><div class="blob b-b"></div>
+    <div class="ring r1" style="top:360px;right:240px"></div>
+    <div class="dot" style="left:280px;top:760px"></div>
+    <div class="dot" style="right:320px;top:1160px"></div>
+    <div class="cap">
+      <div class="label">Traduction OCR</div>
+      <div class="headline">Traduis n'importe<br/>quelle page.</div>
+    </div>
+    <div class="pad-wrap">
+      <div class="pad"><div class="screen"><img src="public/screenshots-ipad/settings.png" alt=""/></div></div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -34,3 +34,5 @@ meowToon/fastlane/test_output/
 
 # Marketing slides generator (Node)
 meowToon/app-store-screenshots/node_modules/
+# fastlane raw simulator captures (regenerated)
+meowToon/fastlane/screenshots-ipad/
