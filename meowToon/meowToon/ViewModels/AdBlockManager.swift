@@ -21,8 +21,10 @@ class AdBlockManager: ObservableObject {
             print("AdBlock: rules file not found")
             return
         }
+        // Bump this identifier any time AdBlockRules.json changes — the
+        // compiled list is cached on disk by WKContentRuleListStore.
         WKContentRuleListStore.default().compileContentRuleList(
-            forIdentifier: "meowToon.AdBlock",
+            forIdentifier: "meowToon.AdBlock.v3",
             encodedContentRuleList: data
         ) { [weak self] list, error in
             if let list {

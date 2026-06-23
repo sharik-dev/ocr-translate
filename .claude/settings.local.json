@@ -3,7 +3,9 @@
     "allow": [
       "Bash(xcrun swift-ide-test:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(xcodebuild -version)",
+      "Bash(xcrun simctl *)"
     ]
   }
 }

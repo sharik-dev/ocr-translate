@@ -31,6 +31,22 @@ Capture App Store screenshots via the UITest target
 
 Register the bundle id + create the app on App Store Connect
 
+### ios ensure_version
+
+```sh
+[bundle exec] fastlane ios ensure_version
+```
+
+Create the editable 1.0 version + review detail if missing (run once before metadata)
+
+### ios metadata
+
+```sh
+[bundle exec] fastlane ios metadata
+```
+
+Push App Store listing text + marketing screenshots (draft, no submit)
+
 ### ios beta
 
 ```sh

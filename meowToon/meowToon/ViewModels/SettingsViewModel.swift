@@ -19,21 +19,7 @@ class SettingsViewModel: ObservableObject {
     private let showTranslateBtnKey   = "meowToon.showTranslateBtn"
     private let defaultsSeededKey     = "meowToon.defaultFavoritesSeeded"
 
-    /// Favoris fournis par défaut avec l'app (injectés une seule fois).
-    static let defaultFavorites: [FavoriteSite] = [
-        FavoriteSite(
-            name:           "Famelack TV",
-            urlString:      "https://famelack.com/tv",
-            iconSystemName: "tv",
-            type:           .site
-        ),
-        FavoriteSite(
-            name:           "Anime-Sama",
-            urlString:      "https://anime-sama.fr",
-            iconSystemName: "books.vertical.fill",
-            type:           .webtoon
-        ),
-    ]
+    static let defaultFavorites: [FavoriteSite] = []
 
     init() {
         // Favorites — seed defaults on first launch, otherwise restore saved data

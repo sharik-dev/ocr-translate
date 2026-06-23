@@ -2,18 +2,15 @@ import SwiftUI
 
 struct FavoriteSiteFormView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var settingsVM:     SettingsViewModel
-    @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var settingsVM: SettingsViewModel
 
-    @State private var favoriteType:      FavoriteType = .webtoon
     @State private var urlString:         String = ""
     @State private var name:              String = ""
     @State private var nameWasAutoFilled: Bool   = false
 
     private var isValid: Bool {
-        let u = urlString.trimmingCharacters(in: .whitespaces)
-        let n = name.trimmingCharacters(in: .whitespaces)
-        return !u.isEmpty && !n.isEmpty
+        !urlString.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     var body: some View {
@@ -22,14 +19,6 @@ struct FavoriteSiteFormView: View {
                 kDarkBG.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
-
-                        // ── Type Site / Webtoon ──────────────────────────────
-                        Picker("", selection: $favoriteType) {
-                            Text("Accès rapide").tag(FavoriteType.site)
-                            Text("Webtoon").tag(FavoriteType.webtoon)
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: favoriteType) { _, _ in }
 
                         // ── URL ─────────────────────────────────────────────
                         inputSection(label: "LIEN") {
@@ -46,7 +35,7 @@ struct FavoriteSiteFormView: View {
                             if nameWasAutoFilled || name.isEmpty {
                                 let extracted = extractTitle(from: newURL)
                                 if !extracted.isEmpty {
-                                    name             = extracted
+                                    name              = extracted
                                     nameWasAutoFilled = true
                                 }
                             }
@@ -61,12 +50,11 @@ struct FavoriteSiteFormView: View {
                                 .onChange(of: name) { _, _ in nameWasAutoFilled = false }
                                 .padding(.horizontal, 16).padding(.vertical, 14)
                         }
-
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
                 }
             }
-            .navigationTitle(favoriteType == .site ? "Accès rapide" : "Ajouter un webtoon")
+            .navigationTitle("Ajouter un favori")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -77,8 +65,10 @@ struct FavoriteSiteFormView: View {
                     Button("Enregistrer") { save() }
                         .disabled(!isValid)
                         .foregroundStyle(isValid
-                            ? LinearGradient(colors: [kGreen, kGreen.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
-                            : LinearGradient(colors: [.gray.opacity(0.4), .gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing))
+                            ? LinearGradient(colors: [kGreen, kGreen.opacity(0.75)],
+                                             startPoint: .leading, endPoint: .trailing)
+                            : LinearGradient(colors: [.gray.opacity(0.4), .gray.opacity(0.4)],
+                                             startPoint: .leading, endPoint: .trailing))
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
@@ -114,7 +104,8 @@ struct FavoriteSiteFormView: View {
         guard let url = URL(string: urlStr) else { return "" }
         let paths = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
         for comp in paths.reversed() {
-            let noExt   = (comp.components(separatedBy: "?").first ?? comp).components(separatedBy: ".").first ?? comp
+            let noExt   = (comp.components(separatedBy: "?").first ?? comp)
+                .components(separatedBy: ".").first ?? comp
             let cleaned = noExt.replacingOccurrences(of: "-", with: " ")
                                .replacingOccurrences(of: "_", with: " ")
                                .trimmingCharacters(in: .whitespaces)
@@ -137,13 +128,7 @@ struct FavoriteSiteFormView: View {
         var url = urlString.trimmingCharacters(in: .whitespaces)
         if !url.hasPrefix("http://") && !url.hasPrefix("https://") { url = "https://" + url }
         let trimName = name.trimmingCharacters(in: .whitespaces)
-
-        switch favoriteType {
-        case .site:
-            settingsVM.addFavorite(FavoriteSite(name: trimName, urlString: url, type: .site))
-        case .webtoon:
-            libraryManager.quickAddWebtoon(name: trimName, siteURL: url)
-        }
+        settingsVM.addFavorite(FavoriteSite(name: trimName, urlString: url, type: .site))
         dismiss()
     }
 }
@@ -151,5 +136,4 @@ struct FavoriteSiteFormView: View {
 #Preview {
     FavoriteSiteFormView()
         .environmentObject(SettingsViewModel())
-        .environmentObject(LibraryManager())
 }

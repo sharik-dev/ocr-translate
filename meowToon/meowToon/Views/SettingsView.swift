@@ -25,14 +25,60 @@ struct SettingsView: View {
                             ) { settingsVM.saveAdBlock() }
                         }
 
-                        // ── Traducteur ──────────────────────────────────
+                        // ── Boutons flottants ───────────────────────────
+                        sectionHeader("Boutons flottants")
+                        glassCard {
+                            VStack(spacing: 0) {
+                                // Opacity slider
+                                HStack(spacing: 12) {
+                                    Image(systemName: "circle.lefthalf.filled")
+                                        .foregroundColor(.white.opacity(0.65))
+                                        .frame(width: 26)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Opacité").font(.system(size: 14, weight: .medium)).foregroundColor(.white)
+                                        Text("Transparence des boutons flottants").font(.system(size: 11)).foregroundColor(.white.opacity(0.4))
+                                    }
+                                    Slider(value: $settingsVM.floatingButtonOpacity, in: 0.15...1.0, step: 0.05)
+                                        .tint(kGreen)
+                                        .frame(width: 100)
+                                        .onChange(of: settingsVM.floatingButtonOpacity) { _, _ in
+                                            settingsVM.saveFloatingButtons()
+                                        }
+                                    Text("\(Int(settingsVM.floatingButtonOpacity * 100))%")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.4))
+                                        .frame(width: 36, alignment: .trailing)
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 14)
+
+                                dividerLine
+
+                                toggleRow(
+                                    label: "Bouton Favoris",
+                                    icon:  "bookmark",
+                                    description: "Bouton flottant pour sauvegarder une page",
+                                    isOn: $settingsVM.showFavoriteButton
+                                ) { settingsVM.saveFloatingButtons() }
+
+                                dividerLine
+
+                                toggleRow(
+                                    label: "Bouton Traduction",
+                                    icon:  "text.viewfinder",
+                                    description: "Bouton flottant pour analyser l'écran",
+                                    isOn: $settingsVM.showTranslateButton
+                                ) { settingsVM.saveFloatingButtons() }
+                            }
+                        }
+
+                        // ── Traducteur OCR ───────────────────────────────
                         sectionHeader("Traducteur OCR")
                         glassCard {
                             VStack(spacing: 0) {
                                 toggleRow(
-                                    label: "Afficher le bouton de traduction",
+                                    label: "Activer l'OCR",
                                     icon:  "text.viewfinder",
-                                    description: "Bouton flottant pour analyser l'écran",
+                                    description: "Reconnaissance de texte sur l'écran",
                                     isOn: $settingsVM.translationSettings.isOCREnabled
                                 ) { settingsVM.saveTranslationSettings() }
 

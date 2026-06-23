@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - TabManager
 
@@ -8,6 +9,8 @@ final class TabManager: ObservableObject {
 
     @Published var tabs:        [BrowserTab] = []
     @Published var activeIndex: Int           = 0
+    /// In-memory thumbnail cache per tab. Reset on cold launch.
+    @Published var thumbnails:  [UUID: UIImage] = [:]
 
     /// One WebViewModel per tab — keyed by tab ID.
     private(set) var viewModels: [UUID: WebViewModel] = [:]
@@ -57,10 +60,44 @@ final class TabManager: ObservableObject {
     func closeTab(id: UUID) {
         guard let idx = tabs.firstIndex(where: { $0.id == id }) else { return }
         viewModels.removeValue(forKey: id)
+        thumbnails.removeValue(forKey: id)
         tabs.remove(at: idx)
         if tabs.isEmpty { addTab(); return }
         if activeIndex >= tabs.count { activeIndex = tabs.count - 1 }
         persist()
+    }
+
+    func closeAllTabs() {
+        viewModels.removeAll()
+        thumbnails.removeAll()
+        tabs.removeAll()
+        activeIndex = 0
+        addTab()  // always keep at least one
+        persist()
+    }
+
+    // MARK: - Thumbnails
+
+    func captureThumbnail(for tabID: UUID) async {
+        guard let vm = viewModels[tabID], let raw = await vm.takeSnapshot() else { return }
+        // Downscale to ~600px wide to keep memory reasonable
+        let maxWidth: CGFloat = 600
+        let scale = min(1.0, maxWidth / max(raw.size.width, 1))
+        if scale >= 1.0 {
+            thumbnails[tabID] = raw
+            return
+        }
+        let target = CGSize(width: raw.size.width * scale, height: raw.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: target)
+        let small = renderer.image { _ in
+            raw.draw(in: CGRect(origin: .zero, size: target))
+        }
+        thumbnails[tabID] = small
+    }
+
+    func captureActiveTabThumbnail() async {
+        guard let tab = activeTab else { return }
+        await captureThumbnail(for: tab.id)
     }
 
     func selectTab(at index: Int) {
